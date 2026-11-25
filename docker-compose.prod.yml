@@ -1,0 +1,45 @@
+services:
+  mailpit:
+    profiles: ["dev-only"]
+
+  zitadel:
+    environment:
+      ZITADEL_EXTERNALDOMAIN: ${AUTH_DOMAIN}
+      ZITADEL_EXTERNALPORT: 443
+      ZITADEL_EXTERNALSECURE: "true"
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: "https://${LOGIN_DOMAIN}/ui/v2/login"
+      ZITADEL_OIDC_DEFAULTLOGINURLV2: "https://${LOGIN_DOMAIN}/ui/v2/login/login?authRequest="
+      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: "https://${LOGIN_DOMAIN}/ui/v2/login/logout?post_logout_redirect="
+    ports: !reset []
+
+  william-ui:
+    environment:
+      ORIGIN: https://${LOGIN_DOMAIN}
+      ZITADEL_PUBLIC_URL: https://${AUTH_DOMAIN}
+      PUBLIC_RP_ID: ${AUTH_DOMAIN}
+      PUBLIC_BABASKETET_APP_URL: https://${APP_DOMAIN}
+    ports: !reset []
+
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Auth__OidcIssuer: https://${AUTH_DOMAIN}
+      Cors__AllowedOrigins: https://${APP_DOMAIN},https://${LOGIN_DOMAIN}
+    ports: !reset []
+
+  web:
+    build:
+      args:
+        API_BASE_URL: https://${API_DOMAIN}
+        OIDC_AUTHORITY: https://${AUTH_DOMAIN}
+        WILLIAM_UI_URL: https://${LOGIN_DOMAIN}
+    ports: !reset []
+
+  proxy:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/caddy/Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config

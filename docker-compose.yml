@@ -1,0 +1,247 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_postgres_root_change_me}
+      POSTGRES_DB: postgres
+      BABASKETET_DB_NAME: ${BABASKETET_DB_NAME:-babasketet_db}
+      BABASKETET_DB_USER: ${BABASKETET_DB_USER:-babasketet_user}
+      BABASKETET_DB_PASSWORD: ${BABASKETET_DB_PASSWORD:-dev_babasketet_pwd_change_me}
+      ZITADEL_DB_NAME: ${ZITADEL_DB_NAME:-zitadel_db}
+      ZITADEL_DB_USER: ${ZITADEL_DB_USER:-zitadel_user}
+      ZITADEL_DB_PASSWORD: ${ZITADEL_DB_PASSWORD:-dev_zitadel_pwd_change_me}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh:ro
+    networks:
+      - babasketet-net
+      - iam-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${BABASKETET_DB_NAME:-babasketet_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - iam-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8025/api/v1/info"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  zitadel-volume-init:
+    image: alpine:latest
+    restart: "no"
+    command: ["chmod", "777", "/zitadel-bootstrap"]
+    volumes:
+      - zitadel-bootstrap:/zitadel-bootstrap
+
+  zitadel:
+    image: ghcr.io/zitadel/zitadel:v2.71.11
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      zitadel-volume-init:
+        condition: service_completed_successfully
+    command: >
+      start-from-init
+      --masterkey "${ZITADEL_MASTERKEY:-MasterkeyNeedsToHave32Characters}"
+      --tlsMode disabled
+    environment:
+      ZITADEL_DATABASE_POSTGRES_HOST: postgres
+      ZITADEL_DATABASE_POSTGRES_PORT: 5432
+      ZITADEL_DATABASE_POSTGRES_DATABASE: ${ZITADEL_DB_NAME:-zitadel_db}
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: ${ZITADEL_DB_USER:-zitadel_user}
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${ZITADEL_DB_PASSWORD:-dev_zitadel_pwd_change_me}
+      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: ${POSTGRES_USER:-postgres}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: ${POSTGRES_PASSWORD:-dev_postgres_root_change_me}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+
+      ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNAL_DOMAIN:-localhost}
+      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNAL_PORT:-8085}
+      ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNAL_SECURE:-false}
+      ZITADEL_TLS_ENABLED: "false"
+
+      # Login V2 -> WillIAM.UI
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "true"
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: "${WILLIAM_PUBLIC_URL:-http://localhost:3000}/ui/v2/login"
+      ZITADEL_OIDC_DEFAULTLOGINURLV2: "${WILLIAM_PUBLIC_URL:-http://localhost:3000}/ui/v2/login/login?authRequest="
+      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: "${WILLIAM_PUBLIC_URL:-http://localhost:3000}/ui/v2/login/logout?post_logout_redirect="
+
+      # Service User PAT automatico para WillIAM.UI
+      ZITADEL_FIRSTINSTANCE_ORG_NAME: Babasketet
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_ADMIN_USERNAME:-admin@babasketet.localhost}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_FIRSTNAME: Admin
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_LASTNAME: Babasketet
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS: ${ZITADEL_ADMIN_USERNAME:-admin@babasketet.localhost}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_VERIFIED: "true"
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:-Password123!}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "false"
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: WillIAM Login Client
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: "2029-01-01T00:00:00Z"
+      ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel-bootstrap/login-client.pat
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: bootstrap-admin
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: Bootstrap Admin
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: "2029-01-01T00:00:00Z"
+      ZITADEL_FIRSTINSTANCE_PATPATH: /zitadel-bootstrap/admin.pat
+
+      # SMTP local hacia Mailpit (para Email MagicLink / OTP)
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_HOST: mailpit:1025
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_TLS: "false"
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROM: noreply@babasketet.localhost
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROMNAME: Babasketet IAM
+    volumes:
+      - zitadel-bootstrap:/zitadel-bootstrap
+    ports:
+      - "8085:8080"
+    networks:
+      - iam-net
+    healthcheck:
+      test: ["CMD", "/app/zitadel", "ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  zitadel-bootstrap:
+    image: node:22-alpine
+    restart: "no"
+    depends_on:
+      zitadel:
+        condition: service_healthy
+    environment:
+      ZITADEL_API_URL: http://zitadel:8080
+      ZITADEL_PUBLIC_URL: ${ZITADEL_PUBLIC_URL:-http://localhost:8085}
+      ZITADEL_ADMIN_TOKEN_FILE: /zitadel-bootstrap/admin.pat
+      ZITADEL_CLIENT_ID_FILE: /zitadel-bootstrap/client-id.txt
+      PUBLIC_BABASKETET_APP_URL: ${PUBLIC_BABASKETET_APP_URL:-http://localhost:8081}
+    volumes:
+      - ./infra/zitadel/bootstrap.mjs:/bootstrap.mjs:ro
+      - zitadel-bootstrap:/zitadel-bootstrap
+    command: ["node", "/bootstrap.mjs"]
+    networks:
+      - iam-net
+
+  william-ui:
+    build:
+      context: ./src/WillIAM.UI
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      zitadel:
+        condition: service_healthy
+      zitadel-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      PORT: 3000
+      ORIGIN: ${WILLIAM_PUBLIC_URL:-http://localhost:3000}
+      ZITADEL_API_URL: ${ZITADEL_API_URL:-http://zitadel:8080}
+      ZITADEL_PUBLIC_URL: ${ZITADEL_PUBLIC_URL:-http://localhost:8085}
+      ZITADEL_SERVICE_USER_TOKEN_FILE: /zitadel-bootstrap/login-client.pat
+      ZITADEL_ADMIN_TOKEN_FILE: /zitadel-bootstrap/admin.pat
+      ZITADEL_CLIENT_ID_FILE: /zitadel-bootstrap/client-id.txt
+      PUBLIC_RP_ID: ${PUBLIC_RP_ID:-localhost}
+      PUBLIC_BABASKETET_APP_URL: ${PUBLIC_BABASKETET_APP_URL:-http://localhost:8081}
+      SMS_PROVIDER: ${SMS_PROVIDER:-mock}
+    volumes:
+      - zitadel-bootstrap:/zitadel-bootstrap:ro
+    ports:
+      - "${WILLIAM_UI_PORT:-3000}:3000"
+    networks:
+      - iam-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./src/Babasketet.API
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__BabasketetDb: "Host=postgres;Port=5432;Database=${BABASKETET_DB_NAME:-babasketet_db};Username=${BABASKETET_DB_USER:-babasketet_user};Password=${BABASKETET_DB_PASSWORD:-dev_babasketet_pwd_change_me}"
+      Auth__DeviceTokenSigningKey: ${DEVICE_TOKEN_SIGNING_KEY:-Babasketet_Dev_Signing_Key_Change_In_Prod_Min_32_Bytes!}
+      Auth__OidcIssuer: ${OIDC_ISSUER:-http://localhost:8085}
+      Auth__OidcAuthority: ${ZITADEL_API_URL:-http://zitadel:8080}
+      Auth__OidcAudience: ${OIDC_AUDIENCE:-babasketet}
+      Cors__AllowedOrigins: ${CORS_ALLOWED_ORIGINS:-http://localhost:8081,http://localhost:3000,http://localhost}
+    ports:
+      - "${API_PORT:-8080}:8080"
+    networks:
+      - babasketet-net
+      - iam-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: ./src/Babasketet.WEB
+      dockerfile: Dockerfile
+      args:
+        API_BASE_URL: http://localhost:${API_PORT:-8080}
+        OIDC_AUTHORITY: ${ZITADEL_PUBLIC_URL:-http://localhost:8085}
+        WILLIAM_UI_URL: ${WILLIAM_PUBLIC_URL:-http://localhost:3000}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8081}:80"
+    networks:
+      - babasketet-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+      - api
+      - zitadel
+      - william-ui
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - babasketet-net
+      - iam-net
+
+volumes:
+  pgdata:
+  zitadel-bootstrap:
+  caddy-data:
+  caddy-config:
+
+networks:
+  babasketet-net:
+    driver: bridge
+  iam-net:
+    driver: bridge
