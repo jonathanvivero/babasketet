@@ -89,17 +89,31 @@ public sealed class BabasketetApiFixture : IAsyncLifetime
         await client.GetAsync("/health/ready");
     }
 
-    public string IssueZitadelJwt(string userId, bool isPremium = false)
+    public string IssueZitadelJwt(
+        string userId,
+        bool isPremium = false,
+        string[]? roles = null,
+        string? email = null,
+        string? displayName = null)
     {
         var creds = new SigningCredentials(_testOidcKey, SecurityAlgorithms.RsaSha256);
         var claims = new List<Claim>
         {
             new("sub", userId),
-            new("email", $"{userId}@example.com")
+            new("email", email ?? $"{userId}@example.com")
         };
+        if (!string.IsNullOrWhiteSpace(displayName))
+        {
+            claims.Add(new("name", displayName));
+        }
         if (isPremium)
         {
             claims.Add(new("plan", "premium"));
+        }
+        if (roles is { Length: > 0 })
+        {
+            var dict = roles.ToDictionary(r => r, _ => new Dictionary<string, string> { ["org"] = "babasketet" });
+            claims.Add(new("urn:zitadel:iam:org:project:roles", System.Text.Json.JsonSerializer.Serialize(dict)));
         }
 
         var token = new JwtSecurityToken(
@@ -130,7 +144,7 @@ public sealed class BabasketetApiFixture : IAsyncLifetime
         await db.Database.ExecuteSqlRawAsync("""
             TRUNCATE TABLE purchase_items, purchases, product_price_history,
                            basket_items, shopping_list_items, products,
-                           house_invitations, house_members, houses RESTART IDENTITY CASCADE;
+                           house_invitations, house_members, houses, app_users RESTART IDENTITY CASCADE;
             DELETE FROM stores WHERE is_system = FALSE;
             DELETE FROM product_types WHERE is_system = FALSE;
             """);

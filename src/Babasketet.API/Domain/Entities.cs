@@ -1,5 +1,39 @@
 namespace Babasketet.API.Domain;
 
+public static class AppGlobalRoles
+{
+    public const string Guest = "Guest";
+    public const string User = "User";
+}
+
+public static class AppUserStatuses
+{
+    public const string Active = "Active";
+    public const string Blocked = "Blocked";
+}
+
+public static class HouseRoles
+{
+    public const string Owner = "owner";
+    public const string Member = "member";
+}
+
+public class AppUser
+{
+    public Guid Id { get; set; }
+    public string? ZitadelUserId { get; set; }
+    public Guid? DeviceId { get; set; }
+    public string GlobalRole { get; set; } = AppGlobalRoles.Guest;
+    public bool IsAdmin { get; set; }
+    public string Status { get; set; } = AppUserStatuses.Active;
+    public string? Email { get; set; }
+    public string? DisplayName { get; set; }
+    public string AuthMethod { get; set; } = "anonymous";
+    public string CustomPropertiesJson { get; set; } = "{}";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset LastSeenAt { get; set; }
+}
+
 public class House
 {
     public Guid Id { get; set; }

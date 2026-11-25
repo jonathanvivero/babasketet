@@ -31,6 +31,7 @@ class AppState {
   final List<HouseDto> houses;
   final int maxHouses;
   final bool isRegistered;
+  final bool isAdmin;
   final HouseDto? activeHouse;
   final List<StoreDto> stores;
   final List<ProductTypeDto> productTypes;
@@ -44,6 +45,7 @@ class AppState {
     this.houses = const [],
     this.maxHouses = 1,
     this.isRegistered = false,
+    this.isAdmin = false,
     this.activeHouse,
     this.stores = const [],
     this.productTypes = const [],
@@ -58,6 +60,7 @@ class AppState {
     List<HouseDto>? houses,
     int? maxHouses,
     bool? isRegistered,
+    bool? isAdmin,
     HouseDto? activeHouse,
     bool clearActiveHouse = false,
     List<StoreDto>? stores,
@@ -73,6 +76,7 @@ class AppState {
         houses: houses ?? this.houses,
         maxHouses: maxHouses ?? this.maxHouses,
         isRegistered: isRegistered ?? this.isRegistered,
+        isAdmin: isAdmin ?? this.isAdmin,
         activeHouse:
             clearActiveHouse ? null : (activeHouse ?? this.activeHouse),
         stores: stores ?? this.stores,
@@ -101,12 +105,21 @@ class HouseController extends Notifier<AppState> {
     state = state.copyWith(loading: true, clearError: true);
     try {
       final resp = await _api.getHouses();
+      var isAdmin = false;
+      try {
+        final me = await _api.getMe();
+        isAdmin = me.isAdmin;
+      } catch (_) {
+        // Ignorado si /me falla durante arranque parcial
+      }
+
       if (resp.houses.isEmpty) {
         state = AppState(
           loading: false,
           houses: const [],
           maxHouses: resp.maxHouses,
           isRegistered: resp.isRegistered,
+          isAdmin: isAdmin,
         );
         return;
       }
@@ -122,6 +135,7 @@ class HouseController extends Notifier<AppState> {
         houses: resp.houses,
         maxHouses: resp.maxHouses,
         isRegistered: resp.isRegistered,
+        isAdmin: isAdmin,
         activeHouse: selected,
       );
 

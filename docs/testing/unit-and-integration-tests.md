@@ -49,6 +49,9 @@ La pirámide de testing de **Babasketet** garantiza que cada regla de dominio, r
 | `IT-API-09` | Efectuar Compra | `POST /basket/checkout` crea `purchases` + `purchase_items` con snapshot de precios/cantidades y deja `basket_items` vacío en una sola transacción. |
 | `IT-API-10` | Compras (Manual Total + Ticket Locked) | `PATCH /purchases/{id}/total` actualiza `manual_total`; `POST /purchases/{id}/receipt` sin claim Premium responde `403 Forbidden`. |
 | `IT-API-11` | **SignalR Multi-Dispositivo** | 3 clientes `HubConnection` conectados a la misma casa; Cliente 1 añade item en Lista → Clientes 2 y 3 reciben el evento `ListUpdated` en tiempo real. |
+| `IT-API-13` | **Migraciones Reversibles EF Core** | Comprueba `!HasPendingModelChanges()` y ejecuta `Down` a baseline + `Up` a `AddAppUsersAndOwnershipRules` en PostgreSQL real. |
+| `IT-API-14` | **Gobernanza de Roles (`Guest`/`User`/`Owner`/`Admin`)** | Valida que un `Guest` nunca es `Owner`, que al registrarse/reclamar o canjear invitación en casa sin usuarios pasa a `Owner` el primero, y que un `User` recibe `403` en `/api/v1/admin/*`. |
+| `IT-API-15` | **Endpoints `/api/v1/admin/*` y Bloqueo** | Valida listado/detalle de casas, edición y bloqueo inmediato de usuarios (`403 USER_BLOCKED`), y listado alfabético de ítems agrupado (`"2 casas"`). |
 
 ---
 
@@ -67,6 +70,7 @@ La pirámide de testing de **Babasketet** garantiza que cada regla de dominio, r
 - `WT-WEB-07`: **Modal de confirmación "Efectuar Compra"**: cancelar mantiene la cesta intacta; confirmar invoca checkout y limpia la cesta.
 - `WT-WEB-08`: **Botón Ticket Premium Locked**: muestra icono de candado y abre aviso Premium al pulsar.
 - `WT-WEB-09`: **Banner PWA Primera Visita (`PwaInstallBanner`)**: se muestra cuando `pwaInstallPromptVisibleProvider` está activo y se oculta al pulsar cerrar.
+- `WT-WEB-10`: **Guard de `/admin-bo` (`AdminBackofficePage`)**: usuarios no Admin ven `403 · Acceso denegado`; usuarios `Admin` acceden a `Casas`, `Usuarios` e `Ítems`.
 
 ---
 

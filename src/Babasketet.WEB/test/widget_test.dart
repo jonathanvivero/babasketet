@@ -1,11 +1,34 @@
 import 'package:babasketet_web/core/config/app_config.dart';
+import 'package:babasketet_web/core/models/models.dart';
+import 'package:babasketet_web/core/network/api_client.dart';
+import 'package:babasketet_web/core/storage/local_storage.dart';
 import 'package:babasketet_web/core/widgets/long_press_and_dot.dart';
+import 'package:babasketet_web/features/admin/admin_page.dart';
+import 'package:babasketet_web/features/houses/house_providers.dart';
 import 'package:babasketet_web/features/houses/onboarding_page.dart';
 import 'package:babasketet_web/features/pwa/pwa_install_banner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _FakeAdminApiClient extends BabasketetApiClient {
+  final MeResponse me;
+  _FakeAdminApiClient(this.me) : super(storage: LocalStorageService());
+
+  @override
+  Future<MeResponse> getMe() async => me;
+
+  @override
+  Future<List<AdminHouseSummaryDto>> adminGetHouses() async => const [];
+
+  @override
+  Future<List<AdminUserSummaryDto>> adminGetUsers() async => const [];
+
+  @override
+  Future<List<AdminCatalogItemDto>> adminGetItems({String? query}) async =>
+      const [];
+}
 
 void main() {
   test('AppConfig formats and parses Euro amounts with es-ES comma', () {
@@ -108,5 +131,53 @@ void main() {
     await tester.tap(find.byIcon(Icons.close_rounded));
     await tester.pumpAndSettle();
     expect(find.text('Instalar'), findsNothing);
+  });
+
+  testWidgets('AdminBackofficePage enforces Admin role guard', (tester) async {
+    const userMe = MeResponse(
+      globalRole: 'User',
+      isAuthenticated: true,
+      isAdmin: false,
+      status: 'Active',
+      email: 'user@babasketet.test',
+      effectiveRoles: ['User'],
+      houses: [],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        key: const ValueKey('scope_user'),
+        overrides: [
+          apiClientProvider.overrideWithValue(_FakeAdminApiClient(userMe)),
+        ],
+        child: const MaterialApp(home: AdminBackofficePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('403 · Acceso denegado'), findsOneWidget);
+
+    const adminMe = MeResponse(
+      globalRole: 'User',
+      isAuthenticated: true,
+      isAdmin: true,
+      status: 'Active',
+      email: 'jonathanvivero@gmail.com',
+      effectiveRoles: ['User', 'Admin'],
+      houses: [],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        key: const ValueKey('scope_admin'),
+        overrides: [
+          apiClientProvider.overrideWithValue(_FakeAdminApiClient(adminMe)),
+        ],
+        child: const MaterialApp(home: AdminBackofficePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Casas (0)'), findsOneWidget);
+    expect(find.text('Usuarios (0)'), findsOneWidget);
+    expect(find.text('Ítems (0)'), findsOneWidget);
   });
 }

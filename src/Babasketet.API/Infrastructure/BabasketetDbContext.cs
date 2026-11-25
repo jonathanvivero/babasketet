@@ -5,6 +5,7 @@ namespace Babasketet.API.Infrastructure;
 
 public sealed class BabasketetDbContext(DbContextOptions<BabasketetDbContext> options) : DbContext(options)
 {
+    public DbSet<AppUser> AppUsers => Set<AppUser>();
     public DbSet<House> Houses => Set<House>();
     public DbSet<HouseMember> HouseMembers => Set<HouseMember>();
     public DbSet<HouseInvitation> HouseInvitations => Set<HouseInvitation>();
@@ -19,6 +20,37 @@ public sealed class BabasketetDbContext(DbContextOptions<BabasketetDbContext> op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<AppUser>(e =>
+        {
+            e.ToTable("app_users", t =>
+            {
+                t.HasCheckConstraint("ck_app_users_identity", "zitadel_user_id IS NOT NULL OR device_id IS NOT NULL");
+                t.HasCheckConstraint(
+                    "ck_app_users_global_role",
+                    "(global_role = 'Guest' AND zitadel_user_id IS NULL AND is_admin = FALSE) OR (global_role = 'User' AND zitadel_user_id IS NOT NULL)");
+                t.HasCheckConstraint("ck_app_users_status", "status IN ('Active', 'Blocked')");
+            });
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.ZitadelUserId).HasColumnName("zitadel_user_id").HasMaxLength(128);
+            e.Property(x => x.DeviceId).HasColumnName("device_id");
+            e.Property(x => x.GlobalRole).HasColumnName("global_role").HasMaxLength(32).IsRequired();
+            e.Property(x => x.IsAdmin).HasColumnName("is_admin").IsRequired();
+            e.Property(x => x.Status).HasColumnName("status").HasMaxLength(32).IsRequired();
+            e.Property(x => x.Email).HasColumnName("email").HasMaxLength(256);
+            e.Property(x => x.DisplayName).HasColumnName("display_name").HasMaxLength(200);
+            e.Property(x => x.AuthMethod).HasColumnName("auth_method").HasMaxLength(32).IsRequired();
+            e.Property(x => x.CustomPropertiesJson).HasColumnName("custom_properties_json").HasColumnType("text").IsRequired();
+            e.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            e.Property(x => x.LastSeenAt).HasColumnName("last_seen_at").IsRequired();
+            e.HasIndex(x => x.ZitadelUserId)
+                .IsUnique()
+                .HasFilter("zitadel_user_id IS NOT NULL");
+            e.HasIndex(x => x.DeviceId)
+                .IsUnique()
+                .HasFilter("device_id IS NOT NULL");
+        });
+
         modelBuilder.Entity<House>(e =>
         {
             e.ToTable("houses");
@@ -37,7 +69,10 @@ public sealed class BabasketetDbContext(DbContextOptions<BabasketetDbContext> op
         modelBuilder.Entity<HouseMember>(e =>
         {
             e.ToTable("house_members", t =>
-                t.HasCheckConstraint("ck_house_members_identity", "user_id IS NOT NULL OR device_id IS NOT NULL"));
+            {
+                t.HasCheckConstraint("ck_house_members_identity", "user_id IS NOT NULL OR device_id IS NOT NULL");
+                t.HasCheckConstraint("ck_house_members_owner_registered", "role <> 'owner' OR user_id IS NOT NULL");
+            });
             e.HasKey(x => x.Id);
             e.Property(x => x.Id).HasColumnName("id");
             e.Property(x => x.HouseId).HasColumnName("house_id").IsRequired();
@@ -55,6 +90,10 @@ public sealed class BabasketetDbContext(DbContextOptions<BabasketetDbContext> op
             e.HasIndex(x => new { x.HouseId, x.DeviceId })
                 .IsUnique()
                 .HasFilter("device_id IS NOT NULL");
+            e.HasIndex(x => x.HouseId)
+                .HasDatabaseName("ux_house_members_single_owner")
+                .IsUnique()
+                .HasFilter("role = 'owner' AND user_id IS NOT NULL");
         });
 
         modelBuilder.Entity<HouseInvitation>(e =>

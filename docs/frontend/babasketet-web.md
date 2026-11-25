@@ -131,15 +131,23 @@ lib/
   - **Establecer / editar Total manual**: teclado numérico para ajustar el importe real del ticket.
   - **Adjuntar foto del ticket**: botón visible con icono de candado (**Locked — Solo versión Premium**); al pulsar muestra modal informativo de función Premium sin romper el flujo.
 
+### 3.7 Panel de Administración (`/admin-bo`)
+- Accesible exclusivamente para usuarios autenticados con rol global `Admin` desde `/admin-bo` (enlace en Drawer y Onboarding cuando `isAdmin == true`).
+- Tres vistas principales:
+  - **Casas**: listado con conteos y vista de detalle (miembros con roles/estado, ítems totales, Lista actual, Cesta actual, Compras e ítems).
+  - **Usuarios**: listado y editor completo (Estado `Activo|Bloqueado`, rol `Guest|User|Owner|Admin`, indicador autenticado/anónimo, propiedades clave-valor en BD y casas con asignación de `Owner`).
+  - **Ítems**: listado alfabético con filtro de texto y agrupación multi-casa (`"N casas"` cuando mismo texto case-insensitive y mismo tipo coinciden en más de una casa).
+
 ---
 
 ## 4. Contrato de Semántica para Playwright
 
 Todos los elementos críticos deben envolverse en `Semantics(identifier: '...')` con nombres estables:
-- `onboarding_create_house_btn`, `onboarding_house_name_input`
+- `onboarding_create_house_btn`, `onboarding_house_name_input`, `onboarding_admin_bo_btn`
 - `tab_lista`, `tab_cesta`, `tab_compras`
 - `store_selector_btn`, `list_input_field`, `list_add_btn`, `list_history_btn`, `list_fab_plus`
 - `list_item_<normalized_name>`, `basket_item_<normalized_name>`, `basket_qty_<normalized_name>`, `basket_price_<normalized_name>`
 - `basket_total_label`, `basket_checkout_btn`, `confirm_checkout_btn`
 - `purchase_receipt_locked_btn`
 - `auth_dial_wheel`, `auth_dial_option_<provider>`
+- `admin_login_btn`, `admin_tab_houses`, `admin_tab_users`, `admin_tab_items`, `admin_user_editor`, `admin_user_save_btn`, `admin_items_search_input`

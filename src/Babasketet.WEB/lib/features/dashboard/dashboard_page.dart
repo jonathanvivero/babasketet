@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/pwa/pwa_install.dart';
 import '../basket/basket_tab.dart';
@@ -139,6 +140,22 @@ class DashboardPage extends ConsumerWidget {
                     },
                   ),
                 ),
+                if (state.isAdmin)
+                  Semantics(
+                    container: true,
+                    identifier: 'drawer_admin_bo_btn',
+                    button: true,
+                    child: ListTile(
+                      leading: const Icon(Icons.admin_panel_settings_rounded,
+                          color: Color(0xFFD97706)),
+                      title: const Text('Panel de Administración'),
+                      subtitle: const Text('/admin-bo · Casas, usuarios e ítems'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.go('/admin-bo');
+                      },
+                    ),
+                  ),
               ],
             ),
           ),

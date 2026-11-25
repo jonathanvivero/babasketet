@@ -29,6 +29,12 @@ public sealed class ResourceNotFoundException(string resource, object id)
 public sealed class ForbiddenAccessException(string message = "No tienes acceso a esta casa.")
     : DomainException("FORBIDDEN", message, StatusCodes.Status403Forbidden);
 
+public sealed class UserBlockedException()
+    : DomainException(
+        "USER_BLOCKED",
+        "Tu cuenta o dispositivo ha sido bloqueado por un administrador.",
+        StatusCodes.Status403Forbidden);
+
 public sealed class PremiumRequiredException()
     : DomainException(
         "PREMIUM_REQUIRED",

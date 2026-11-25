@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/pwa/pwa_install.dart';
 import 'core/router/url_strategy.dart';
+import 'features/admin/admin_page.dart';
 import 'features/dashboard/dashboard_page.dart';
 import 'features/houses/house_providers.dart';
 import 'features/houses/onboarding_page.dart';
@@ -53,6 +54,10 @@ class _BabasketetAppState extends ConsumerState<BabasketetApp> {
           builder: (context, state) => _AuthCallbackHandler(
             code: state.uri.queryParameters['code'],
           ),
+        ),
+        GoRoute(
+          path: '/admin-bo',
+          builder: (context, state) => const AdminBackofficePage(),
         ),
       ],
     );

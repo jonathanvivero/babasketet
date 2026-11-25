@@ -175,3 +175,22 @@ Garantizar que 3 o más dispositivos conectados a la misma casa vean cambios en 
 - **AC-F7.3 (Acceso a cuenta persistente en App instalada)**:
   - *Given* el usuario abre la app instalada (`standalone`) directamente sobre una casa anónima
   - *Then* dispone de acceso visible en la barra superior (`account_btn`) y en el menú lateral para crear cuenta o iniciar sesión en `WillIAM` mediante flujo seguro sin perder su casa local.
+
+---
+
+## F8: Panel de Administración (`/admin-bo`) y Gobernanza de Roles
+
+### Objetivo
+Proporcionar un backoffice en `/admin-bo` exclusivo del rol `Admin` junto con el modelo de roles `Guest`, `User`, `Admin` y `Owner` por casa en `Zitadel`/`WillIAM` y `Babasketet.API`.
+
+### Criterios de Aceptación
+- **AC-F8.1 (Roles y Usuario Admin Inicial)**:
+  - *Given* el proyecto `Babasketet` en Zitadel
+  - *Then* define los roles `Guest` (global, solo no registrados), `User` (global, asignado al registrarse), `Admin` (global, inicial en `jonathanvivero@gmail.com`) y `Owner` (por casa, solo `User`, inicialmente 1 por casa).
+  - *And* `jonathanvivero@gmail.com` nace con contraseña temporal `QWERTYUIOP-789456123!` y `changeRequired = true`, obligado a cambiarla en su primer acceso en `WillIAM.UI`.
+- **AC-F8.2 (Acceso restringido a `/admin-bo`)**:
+  - *Given* un usuario `Guest` o `User` sin `Admin`
+  - *Then* no puede acceder a `/admin-bo` ni a `/api/v1/admin/*` (`403 Forbidden`).
+- **AC-F8.3 (Casas, Usuarios e Ítems en `/admin-bo`)**:
+  - *Given* un usuario `Admin` autenticado en `/admin-bo`
+  - *Then* consulta casas y detalle de casa (usuarios, ítems totales, Lista, Cesta, compras con ítems), lista y edita usuarios (estado `Activo|Bloqueado`, rol, estado autenticado, propiedades en BD, casas), y consulta el listado alfabético y filtrable de ítems mostrando `"N casas"` cuando coinciden texto (case-insensitive) y tipo en varias casas.

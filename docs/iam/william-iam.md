@@ -117,3 +117,18 @@ OIDC_ISSUER=https://auth.tu-dominio.com
 OIDC_AUDIENCE=<zitadel-project-id>
 OIDC_JWKS_URI=https://auth.tu-dominio.com/oauth/v2/keys
 ```
+
+---
+
+## 7. Roles del Proyecto `Babasketet` y Acceso Admin Inicial
+
+`infra/zitadel/bootstrap.mjs` provisiona de forma idempotente en el proyecto `Babasketet` (`projectRoleAssertion: true`, `accessTokenRoleAssertion: true`) los siguientes roles:
+
+| Rol | Ámbito | Reglas |
+| :--- | :--- | :--- |
+| **`Guest`** | Global | Usuarios anónimos (`deviceToken`) sin cuenta en Zitadel. Exclusivo: no puede combinarse con otros roles. |
+| **`User`** | Global | Asignado automáticamente por `WillIAM.UI` al registrarse/autenticarse por cualquier método (Passkey, Password, MagicLink, SSO). Sustituye a `Guest`. |
+| **`Owner`** | Por casa | Solo para usuarios que ya son `User`. Inicialmente máximo 1 `owner` por casa (ver reglas en `Babasketet.API`). |
+| **`Admin`** | Global | Acceso exclusivo a `/admin-bo` y `/api/v1/admin/*`. Concedido por defecto a `jonathanvivero@gmail.com`. |
+
+- **Usuario Admin inicial**: `jonathanvivero@gmail.com` se crea en `bootstrap.mjs` con `changeRequired: true`. En el primer login con contraseña en `WillIAM.UI`, la sesión detecta `passwordChangeRequired` y obliga a establecer una nueva contraseña antes de finalizar el flujo OIDC.

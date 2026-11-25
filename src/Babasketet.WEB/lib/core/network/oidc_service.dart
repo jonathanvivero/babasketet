@@ -45,7 +45,7 @@ class OidcService {
         'client_id': cfg.clientId,
         'redirect_uri': '$origin/auth/callback',
         'response_type': 'code',
-        'scope': 'openid profile email',
+        'scope': 'openid profile email urn:zitadel:iam:org:project:roles',
         'code_challenge': challenge,
         'code_challenge_method': 'S256',
       },

@@ -51,7 +51,8 @@ erDiagram
 | Tabla | Columnas Clave | Restricciones e Invariantes |
 | :--- | :--- | :--- |
 | `houses` | `id (uuid PK)`, `name (varchar 100)`, `active_store_id (uuid FK)`, `created_at`, `updated_at` | Nombre obligatorio (1..100 chars). |
-| `house_members` | `id (uuid PK)`, `house_id (FK)`, `user_id (varchar 128 nullable)`, `device_id (uuid nullable)`, `role (owner/member)`, `joined_at` | `CHECK (user_id IS NOT NULL OR device_id IS NOT NULL)`. Un `device_id` anónimo solo puede tener **1** fila activa; un `user_id` registrado hasta **4**. |
+| `app_users` | `id (uuid PK)`, `zitadel_user_id (varchar 128 nullable)`, `device_id (uuid nullable)`, `global_role (Guest/User)`, `is_admin (bool)`, `status (Active/Blocked)`, `email`, `display_name`, `auth_method`, `custom_properties_json`, `created_at`, `last_seen_at` | Índices únicos filtrados en `zitadel_user_id` y `device_id`. `Guest` no puede ser `Admin` ni tener `zitadel_user_id`. Migraciones EF Core reversibles en `Migrations/`. |
+| `house_members` | `id (uuid PK)`, `house_id (FK)`, `user_id (varchar 128 nullable)`, `device_id (uuid nullable)`, `role (owner/member)`, `joined_at` | `CHECK (user_id IS NOT NULL OR device_id IS NOT NULL)`, `CHECK (role <> 'owner' OR user_id IS NOT NULL)` y `ux_house_members_single_owner` (solo 1 `owner` por casa y únicamente `User`). Un `device_id` anónimo solo puede tener **1** fila activa; un `user_id` registrado hasta **4**. |
 | `house_invitations` | `id (uuid PK)`, `house_id (FK)`, `token_hash (char 64 UNIQUE)`, `created_at`, `expires_at`, `revoked_at` | `expires_at = created_at + interval '1 hour'`. Permite múltiples usos durante esa hora (para enviar a varios dispositivos/familiares) salvo revocación explícita. |
 | `stores` | `id (uuid PK)`, `house_id (uuid nullable FK)`, `name (varchar 80)`, `icon_key (varchar 64)`, `is_default (bool)`, `is_system (bool)` | `house_id IS NULL` → catálogo semilla global (las 24 tiendas ES/PT). `house_id IS NOT NULL` → tienda personalizada de esa casa. |
 | `product_types` | `id (uuid PK)`, `house_id (uuid nullable FK)`, `name (varchar 80)`, `fill_hex (char 7)`, `border_hex (char 7 nullable)`, `is_system (bool)` | `house_id IS NULL` → 18 tipos por defecto. `house_id IS NOT NULL` → tipos creados por el usuario. |
@@ -167,6 +168,17 @@ WHERE product_id = @productId
 | `GET` | `/api/v1/houses/{houseId}/purchases/{purchaseId}` | Detalle de elementos de una compra. |
 | `PATCH` | `/api/v1/houses/{houseId}/purchases/{purchaseId}/total` | Permite establecer o corregir el total manual de la compra (`{ manualTotal }`). |
 | `POST` | `/api/v1/houses/{houseId}/purchases/{purchaseId}/receipt` | Adjuntar foto de ticket — protegido por política `PremiumOnly` (devuelve `403 Forbidden` / `PREMIUM_REQUIRED` en plan Free). |
+
+### Perfil y Panel de Administración (`/api/v1/admin/*` — solo rol `Admin`)
+| Método | Ruta | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/v1/me` | Devuelve perfil, estado (`Active`/`Blocked`), roles efectivos (`Guest`, `User`, `Owner`, `Admin`) y casas/roles del llamante. |
+| `GET` | `/api/v1/admin/houses` | Listado de casas con conteos de usuarios, ítems totales, lista, cesta y compras. |
+| `GET` | `/api/v1/admin/houses/{houseId}` | Detalle de una casa: usuarios, ítems totales, ítems en Lista, ítems en Cesta y compras con sus ítems. |
+| `GET` | `/api/v1/admin/users` | Listado de usuarios registrados (`User`) e invitados (`Guest`) con estado, roles y casas. |
+| `GET` | `/api/v1/admin/users/{userId}` | Detalle de usuario con estado, autenticación, propiedades en BD y casas. |
+| `PUT` | `/api/v1/admin/users/{userId}` | Edición de estado (`Active`/`Blocked`), rol `Admin`, `Owner` por casa, nombre y propiedades clave-valor en BD. |
+| `GET` | `/api/v1/admin/items?q=...` | Catálogo global de ítems ordenados alfabéticamente, con tipo, filtro de texto y agrupación multi-casa (`"N casas"` si coincide texto case-insensitive y tipo). |
 
 ---
 
