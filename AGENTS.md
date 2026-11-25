@@ -12,6 +12,7 @@ Este documento define las reglas inmutables, el contexto técnico y el flujo ope
 4. **Integridad del Histórico de Precios**: El precio de un producto en un supermercado sigue un modelo temporal estricto (SCD Type 2). Nunca se sobrescribe un precio histórico; siempre se cierra el vigente (`valid_to = now()`) y se inserta uno nuevo (`valid_to IS NULL`) de forma atómica en una transacción.
 5. **Mobile-First en Flutter Web**: Aunque el primer entregable es una PWA web, el código de `Babasketet.WEB` debe evitar dependencias exclusivas de `dart:html` fuera de adaptadores aislados para permitir compilar a Android e iOS sin reescrituras.
 6. **Accesibilidad Testable**: Todos los controles interactivos de Flutter deben exponer `Semantics` estables y predecibles para que la suite de **Playwright** pueda interactuar con ellos de forma fiable.
+7. **Flujo de Ramas desde `dev`**: Nunca se trabaja ni se commitea directamente sobre `main` ni sobre `dev` para desarrollar funcionalidades. Toda nueva feature o corrección debe partir de `dev` en una rama dedicada (ej. `feat/<nombre>`, `fix/<nombre>`), integrándose de vuelta mediante PR/merge a `dev`.
 
 ---
 
@@ -26,6 +27,7 @@ En lugar de aplicar burocracia pesada a cada cambio, el agente **clasifica la ta
 | **Tier 3 — Feature Track** | Nueva feature (F1–F7), cambio de esquema de BD, nuevo flujo IAM o refactor mayor. | Revisar spec en `docs/features/` → Crear/actualizar documento vivo de seguimiento (`docs/tracks/<feature>.md`) → Diseñar tareas atómicas → Implementar por incrementos → Verificar con unit + integration + Playwright → Actualizar docs afectadas. | Track vivo en `docs/tracks/` (se archiva al cerrar). |
 
 ### Reglas de Ejecución ODD
+- **Rama desde `dev`**: Antes de iniciar cualquier cambio de código o feature, asegurarse de partir de `dev` actualizado y crear una rama específica (`feat/<nombre>`, `fix/<nombre>`, `chore/<nombre>`) para trabajar en ella.
 - **No inventar requisitos**: Si una regla de negocio no está en `docs/specs/` o `docs/features/`, preguntar al usuario antes de asumir.
 - **Specs vivas**: Si durante la implementación cambia un contrato de API, tabla o comportamiento, actualizar el `.md` correspondiente en el mismo commit/PR.
 - **Verificación real**: Ninguna tarea se marca como terminada sin ejecutar los tests pertinentes y confirmar que compila dentro del entorno definido.
@@ -92,6 +94,7 @@ babasketet/
 
 ## 5. Checklist Antes de Cerrar Cualquier Tarea
 
+- [ ] El trabajo se realizó en una rama creada a partir de `dev` (no directamente en `main`).
 - [ ] Los cambios respetan el alcance del Tier ODD elegido.
 - [ ] Las reglas de negocio coinciden con `docs/specs/domain-catalogs.md` y `docs/features/features-roadmap.md`.
 - [ ] Tests unitarios y de integración en verde.
