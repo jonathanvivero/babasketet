@@ -7,7 +7,18 @@ const ZITADEL_PUBLIC_URL = (process.env.ZITADEL_PUBLIC_URL || 'http://localhost:
 const ADMIN_TOKEN_FILE = process.env.ZITADEL_ADMIN_TOKEN_FILE || '/zitadel-bootstrap/admin.pat';
 const LOGIN_PAT_FILE = process.env.ZITADEL_LOGIN_PAT_FILE || '/zitadel-bootstrap/login-client.pat';
 const CLIENT_ID_FILE = process.env.ZITADEL_CLIENT_ID_FILE || '/zitadel-bootstrap/client-id.txt';
+const PROJECT_ID_FILE = process.env.ZITADEL_PROJECT_ID_FILE || '/zitadel-bootstrap/project-id.txt';
 const APP_ORIGIN = (process.env.PUBLIC_BABASKETET_APP_URL || 'http://localhost:8081').replace(/\/$/, '');
+const WILLIAM_PUBLIC_URL = (process.env.WILLIAM_PUBLIC_URL || 'http://localhost:3000').replace(/\/$/, '');
+const SEED_ADMIN_EMAIL = (process.env.SEED_ADMIN_EMAIL || 'jonathanvivero@gmail.com').trim().toLowerCase();
+const SEED_ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || 'QWERTYUIOP-789456123!';
+
+const BABASKETET_ROLES = [
+  { roleKey: 'Guest', displayName: 'Guest', group: 'global' },
+  { roleKey: 'User', displayName: 'User', group: 'global' },
+  { roleKey: 'Admin', displayName: 'Admin', group: 'global' },
+  { roleKey: 'Owner', displayName: 'Owner', group: 'house' }
+];
 
 const apiParsed = new URL(ZITADEL_API_URL);
 const publicHost = new URL(ZITADEL_PUBLIC_URL).host;
@@ -97,6 +108,37 @@ async function main() {
 
   await ensureLoginClientPat(token);
 
+  // 0a. Habilitar Login V2 -> WillIAM.UI a nivel de instancia Zitadel
+  try {
+    await zitadel('/v2/features/instance', token, 'PUT', {
+      loginV2: {
+        required: true,
+        baseUri: `${WILLIAM_PUBLIC_URL}/ui/v2/login`
+      }
+    });
+  } catch (err) {
+    const msg = String(err.message);
+    if (!msg.includes('No changes') && !msg.includes('not been changed')) {
+      throw err;
+    }
+  }
+
+  // 0b. Política de complejidad de contraseñas (permite contraseñas seguras sin minúsculas obligatorias como QWERTYUIOP-789456123!)
+  try {
+    await zitadel('/admin/v1/policies/password/complexity', token, 'PUT', {
+      minLength: 8,
+      hasUppercase: true,
+      hasLowercase: false,
+      hasNumber: true,
+      hasSymbol: true
+    });
+  } catch (err) {
+    const msg = String(err.message);
+    if (!msg.includes('No changes') && !msg.includes('not been changed')) {
+      throw err;
+    }
+  }
+
   // 1. Buscar o crear proyecto "Babasketet"
   const projects = await zitadel('/management/v1/projects/_search', token, 'POST', {
     queries: [{ nameQuery: { name: 'Babasketet', method: 'TEXT_QUERY_METHOD_EQUALS' } }]
@@ -110,31 +152,42 @@ async function main() {
     });
     projectId = createdProj.id;
   }
+  fs.writeFileSync(PROJECT_ID_FILE, `${projectId}\n`, 'utf8');
+
+  // 1b. Asegurar roles del proyecto Babasketet: Guest, User, Admin, Owner
+  const existingRolesRes = await zitadel(`/management/v1/projects/${projectId}/roles/_search`, token, 'POST', {});
+  const existingRoleKeys = new Set((existingRolesRes.result || []).map((r) => r.key));
+  for (const role of BABASKETET_ROLES) {
+    if (!existingRoleKeys.has(role.roleKey)) {
+      await zitadel(`/management/v1/projects/${projectId}/roles`, token, 'POST', role);
+    }
+  }
 
   // 2. Buscar o crear app OIDC PKCE "babasketet-web"
   const apps = await zitadel(`/management/v1/projects/${projectId}/apps/_search`, token, 'POST', {
     queries: [{ nameQuery: { name: 'babasketet-web', method: 'TEXT_QUERY_METHOD_EQUALS' } }]
   });
 
-  let clientId = apps.result?.[0]?.oidcConfig?.clientId;
-  if (!clientId) {
-    const redirectUris = Array.from(
-      new Set([
-        `${APP_ORIGIN}/auth/callback`,
-        'http://localhost:8081/auth/callback',
-        'http://localhost/auth/callback',
-        'http://web:80/auth/callback'
-      ])
-    );
-    const postLogoutUris = Array.from(
-      new Set([
-        `${APP_ORIGIN}/`,
-        'http://localhost:8081/',
-        'http://localhost/',
-        'http://web:80/'
-      ])
-    );
+  const redirectUris = Array.from(
+    new Set([
+      `${APP_ORIGIN}/auth/callback`,
+      'http://localhost:8081/auth/callback',
+      'http://localhost/auth/callback',
+      'http://web:80/auth/callback'
+    ])
+  );
+  const postLogoutUris = Array.from(
+    new Set([
+      `${APP_ORIGIN}/`,
+      'http://localhost:8081/',
+      'http://localhost/',
+      'http://web:80/'
+    ])
+  );
 
+  let clientId = apps.result?.[0]?.oidcConfig?.clientId;
+  const appId = apps.result?.[0]?.id;
+  if (!clientId) {
     const createdApp = await zitadel(`/management/v1/projects/${projectId}/apps/oidc`, token, 'POST', {
       name: 'babasketet-web',
       redirectUris,
@@ -144,15 +197,93 @@ async function main() {
       appType: 'OIDC_APP_TYPE_USER_AGENT',
       authMethodType: 'OIDC_AUTH_METHOD_TYPE_NONE',
       accessTokenType: 'OIDC_TOKEN_TYPE_JWT',
+      accessTokenRoleAssertion: true,
       idTokenRoleAssertion: true,
       idTokenUserinfoAssertion: true,
       devMode: true
     });
     clientId = createdApp.clientId;
+  } else if (appId) {
+    try {
+      await zitadel(`/management/v1/projects/${projectId}/apps/${appId}/oidc_config`, token, 'PUT', {
+        redirectUris,
+        postLogoutRedirectUris: postLogoutUris,
+        responseTypes: ['OIDC_RESPONSE_TYPE_CODE'],
+        grantTypes: ['OIDC_GRANT_TYPE_AUTHORIZATION_CODE', 'OIDC_GRANT_TYPE_REFRESH_TOKEN'],
+        appType: 'OIDC_APP_TYPE_USER_AGENT',
+        authMethodType: 'OIDC_AUTH_METHOD_TYPE_NONE',
+        accessTokenType: 'OIDC_TOKEN_TYPE_JWT',
+        accessTokenRoleAssertion: true,
+        idTokenRoleAssertion: true,
+        idTokenUserinfoAssertion: true,
+        devMode: true
+      });
+    } catch (err) {
+      if (!String(err.message).includes('No changes')) {
+        throw err;
+      }
+    }
+  }
+
+  // 3. Registrar usuario Admin inicial (jonathanvivero@gmail.com) con cambio obligatorio de contraseña
+  const existingUsers = await zitadel('/v2/users', token, 'POST', {
+    queries: [
+      {
+        orQuery: {
+          queries: [
+            { emailQuery: { emailAddress: SEED_ADMIN_EMAIL, method: 'TEXT_QUERY_METHOD_EQUALS' } },
+            { loginNameQuery: { loginName: SEED_ADMIN_EMAIL, method: 'TEXT_QUERY_METHOD_EQUALS' } }
+          ]
+        }
+      }
+    ]
+  });
+
+  let adminUserId = existingUsers.result?.[0]?.userId;
+  if (!adminUserId) {
+    const createdAdmin = await zitadel('/v2/users/human', token, 'POST', {
+      username: SEED_ADMIN_EMAIL,
+      profile: {
+        givenName: 'Jonathan',
+        familyName: 'Vivero',
+        displayName: 'Jonathan Vivero'
+      },
+      email: {
+        email: SEED_ADMIN_EMAIL,
+        isVerified: true
+      },
+      password: {
+        password: SEED_ADMIN_PASSWORD,
+        changeRequired: true
+      }
+    });
+    adminUserId = createdAdmin.userId;
+  }
+
+  // 3b. Asignar roles User + Admin (preservando otros roles ya otorgados como Owner)
+  const existingGrants = await zitadel('/management/v1/users/grants/_search', token, 'POST', {
+    queries: [
+      { projectIdQuery: { projectId } },
+      { userIdQuery: { userId: adminUserId } }
+    ]
+  });
+  const currentGrant = existingGrants.result?.[0];
+  if (!currentGrant) {
+    await zitadel(`/management/v1/users/${adminUserId}/grants`, token, 'POST', {
+      projectId,
+      roleKeys: ['User', 'Admin']
+    });
+  } else {
+    const mergedRoles = Array.from(new Set([...(currentGrant.roleKeys || []), 'User', 'Admin']));
+    if (mergedRoles.length !== (currentGrant.roleKeys || []).length) {
+      await zitadel(`/management/v1/users/${adminUserId}/grants/${currentGrant.id}`, token, 'PUT', {
+        roleKeys: mergedRoles
+      });
+    }
   }
 
   fs.writeFileSync(CLIENT_ID_FILE, `${clientId}\n`, 'utf8');
-  console.log(`Zitadel bootstrap OK. Project=${projectId}, ClientId=${clientId}`);
+  console.log(`Zitadel bootstrap OK. Project=${projectId}, ClientId=${clientId}, AdminUserId=${adminUserId}`);
 }
 
 main().catch((err) => {

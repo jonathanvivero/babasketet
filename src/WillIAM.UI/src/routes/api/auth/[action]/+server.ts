@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { formatE164Phone } from '$lib/authMethods';
 import {
+	ensureRegisteredUserRoles,
 	getZitadelConfig,
 	recordMockNotification,
 	zitadelFetch
@@ -44,8 +45,20 @@ async function finalizeAuthRequest(
 	return res.callbackUrl;
 }
 
+interface ZitadelUserRecord {
+	userId: string;
+	human?: {
+		passwordChangeRequired?: boolean;
+	};
+}
+
 async function findUserByLoginOrEmail(identifier: string): Promise<string | null> {
-	const res = await zitadelFetch<{ result?: Array<{ userId: string }> }>('/v2/users', {
+	const user = await getUserByLoginOrEmail(identifier);
+	return user?.userId ?? null;
+}
+
+async function getUserByLoginOrEmail(identifier: string): Promise<ZitadelUserRecord | null> {
+	const res = await zitadelFetch<{ result?: ZitadelUserRecord[] }>('/v2/users', {
 		method: 'POST',
 		useAdminToken: true,
 		body: JSON.stringify({
@@ -61,7 +74,15 @@ async function findUserByLoginOrEmail(identifier: string): Promise<string | null
 			]
 		})
 	});
-	return res.result?.[0]?.userId ?? null;
+	return res.result?.[0] ?? null;
+}
+
+async function getSessionUserId(sessionId: string, sessionToken: string): Promise<string | null> {
+	const res = await zitadelFetch<{ session?: { factors?: { user?: { id?: string } } } }>(
+		`/v2/sessions/${encodeURIComponent(sessionId)}?sessionToken=${encodeURIComponent(sessionToken)}`,
+		{ method: 'GET' }
+	);
+	return res.session?.factors?.user?.id ?? null;
 }
 
 async function findUserByPhone(phoneE164: string): Promise<string | null> {
@@ -98,34 +119,104 @@ export const POST: RequestHandler = async ({ params, request, url }) => {
 				return json({ error: 'Email y contraseña obligatorios.' }, { status: 400 });
 			}
 
+			const cleanEmail = email.trim().toLowerCase();
+			let userId: string | null = null;
 			if (mode === 'signup') {
-				const parts = (name?.trim() || email.split('@')[0]).split(/\s+/);
+				const parts = (name?.trim() || cleanEmail.split('@')[0]).split(/\s+/);
 				const givenName = parts[0] || 'Usuario';
 				const familyName = parts.slice(1).join(' ') || 'Babasketet';
-				await zitadelFetch('/v2/users/human', {
+				const created = await zitadelFetch<{ userId: string }>('/v2/users/human', {
 					method: 'POST',
 					useAdminToken: true,
 					body: JSON.stringify({
-						username: email.trim().toLowerCase(),
+						username: cleanEmail,
 						profile: { givenName, familyName },
-						email: { email: email.trim().toLowerCase(), isVerified: true },
+						email: { email: cleanEmail, isVerified: true },
 						password: { password, changeRequired: false }
 					})
 				});
+				userId = created.userId;
 			}
 
 			const session = await zitadelFetch<SessionResponse>('/v2/sessions', {
 				method: 'POST',
 				body: JSON.stringify({
 					checks: {
-						user: { loginName: email.trim().toLowerCase() },
+						user: { loginName: cleanEmail },
 						password: { password }
 					}
 				})
 			});
 
+			const userRecord = await getUserByLoginOrEmail(cleanEmail);
+			userId = userRecord?.userId ?? userId;
+			if (userId) {
+				await ensureRegisteredUserRoles(userId);
+			}
+
+			if (userRecord?.human?.passwordChangeRequired) {
+				return json({
+					requiresPasswordChange: true,
+					userId: userRecord.userId,
+					sessionId: session.sessionId,
+					sessionToken: session.sessionToken
+				});
+			}
+
 			const callbackUrl = await finalizeAuthRequest(authRequestId, session.sessionId, session.sessionToken);
 			return json({ callbackUrl, sessionId: session.sessionId });
+		}
+
+		if (action === 'change-password') {
+			const { userId, sessionId, sessionToken, currentPassword, newPassword, authRequestId } = body as {
+				userId: string;
+				sessionId: string;
+				sessionToken: string;
+				currentPassword: string;
+				newPassword: string;
+				authRequestId?: string;
+			};
+
+			if (!userId || !sessionId || !sessionToken || !currentPassword || !newPassword) {
+				return json({ error: 'Todos los campos son obligatorios.' }, { status: 400 });
+			}
+			if (newPassword.length < 8) {
+				return json({ error: 'La nueva contraseña debe tener al menos 8 caracteres.' }, { status: 400 });
+			}
+			if (newPassword === currentPassword) {
+				return json({ error: 'La nueva contraseña debe ser distinta a la actual.' }, { status: 400 });
+			}
+
+			const sessionUserId = await getSessionUserId(sessionId, sessionToken);
+			if (!sessionUserId || sessionUserId !== userId) {
+				return json({ error: 'La sesión de cambio de contraseña no es válida o caducó.' }, { status: 403 });
+			}
+
+			// Verificamos explícitamente la contraseña actual creando/validando factor en sesión
+			await zitadelFetch<SessionResponse>('/v2/sessions', {
+				method: 'POST',
+				body: JSON.stringify({
+					checks: {
+						user: { userId },
+						password: { password: currentPassword }
+					}
+				})
+			});
+
+			await zitadelFetch(`/v2/users/${encodeURIComponent(userId)}/password`, {
+				method: 'POST',
+				useAdminToken: true,
+				body: JSON.stringify({
+					newPassword: {
+						password: newPassword,
+						changeRequired: false
+					}
+				})
+			});
+
+			await ensureRegisteredUserRoles(userId);
+			const callbackUrl = await finalizeAuthRequest(authRequestId, sessionId, sessionToken);
+			return json({ callbackUrl, passwordChanged: true });
 		}
 
 		if (action === 'passkey-login-start') {
@@ -174,10 +265,17 @@ export const POST: RequestHandler = async ({ params, request, url }) => {
 				})
 			});
 
+			const effectiveSessionId = updated.sessionId || sessionId;
+			const effectiveSessionToken = updated.sessionToken || sessionToken;
+			const sessionUserId = await getSessionUserId(effectiveSessionId, effectiveSessionToken);
+			if (sessionUserId) {
+				await ensureRegisteredUserRoles(sessionUserId);
+			}
+
 			const callbackUrl = await finalizeAuthRequest(
 				authRequestId,
-				updated.sessionId || sessionId,
-				updated.sessionToken || sessionToken
+				effectiveSessionId,
+				effectiveSessionToken
 			);
 			return json({ callbackUrl });
 		}
@@ -238,6 +336,8 @@ export const POST: RequestHandler = async ({ params, request, url }) => {
 					})
 				}
 			);
+
+			await ensureRegisteredUserRoles(userId);
 
 			const session = await zitadelFetch<SessionResponse>('/v2/sessions', {
 				method: 'POST',
@@ -414,10 +514,17 @@ export const POST: RequestHandler = async ({ params, request, url }) => {
 				})
 			});
 
+			const effectiveSessionId = updated.sessionId || sessionId;
+			const effectiveSessionToken = updated.sessionToken || sessionToken;
+			const sessionUserId = await getSessionUserId(effectiveSessionId, effectiveSessionToken);
+			if (sessionUserId) {
+				await ensureRegisteredUserRoles(sessionUserId);
+			}
+
 			const callbackUrl = await finalizeAuthRequest(
 				authRequestId,
-				updated.sessionId || sessionId,
-				updated.sessionToken || sessionToken
+				effectiveSessionId,
+				effectiveSessionToken
 			);
 			return json({ callbackUrl });
 		}

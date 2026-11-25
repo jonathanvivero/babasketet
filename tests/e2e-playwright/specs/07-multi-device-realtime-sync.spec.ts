@@ -33,8 +33,11 @@ test.describe('F7: Sincronización en tiempo real en 3 dispositivos', () => {
 		// Dispositivo 2 y 3 se unen
 		await p2.goto(joinPath);
 		await enableFlutterSemantics(p2);
+		await expect(sem(p2, 'list_input_field')).toBeVisible({ timeout: 15_000 });
 		await p3.goto(joinPath);
 		await enableFlutterSemantics(p3);
+		await expect(sem(p3, 'list_input_field')).toBeVisible({ timeout: 15_000 });
+		await p3.waitForTimeout(800);
 
 		// Dispositivo 1 añade "Café" -> Dispositivos 2 y 3 lo ven en tiempo real
 		await fillFlutterText(sem(p1, 'list_input_field'), 'Café');

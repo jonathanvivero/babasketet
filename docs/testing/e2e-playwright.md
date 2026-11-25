@@ -94,6 +94,10 @@ tests/e2e-playwright/
 - **E2E-27**: `manifest.json`, `favicon.png`, `icons/Icon-192.png` y `icons/Icon-512.png` responden `200 OK` con iconos válidos.
 - **E2E-28**: En el Dashboard (y simulando modo `standalone`), el botón de cuenta (`account_btn`) permanece visible y abre el diálogo con acceso a `"Crear cuenta / Iniciar sesión"`.
 
+### `09-admin-panel-and-roles.spec.ts` — Panel `/admin-bo`, Primer Acceso Admin y Roles
+- **E2E-29**: Verifica en Zitadel los 4 roles (`Guest`, `User`, `Admin`, `Owner`) y el usuario `jonathanvivero@gmail.com` con `passwordChangeRequired: true`; valida el flujo completo de cambio obligatorio de contraseña en primer acceso vía `WillIAM.UI` y recorre `/admin-bo` (Casas + detalle, Usuarios + edición, Ítems ordenados/filtrados).
+- **E2E-30**: Verifica que un usuario registrado estándar (`User` sin `Admin`) recibe `403 · Acceso denegado` en `/admin-bo`.
+
 ---
 
 ## 4. Ejecución en Docker / CI

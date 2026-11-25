@@ -125,7 +125,11 @@ services:
       ZITADEL_PUBLIC_URL: ${ZITADEL_PUBLIC_URL:-http://localhost:8085}
       ZITADEL_ADMIN_TOKEN_FILE: /zitadel-bootstrap/admin.pat
       ZITADEL_CLIENT_ID_FILE: /zitadel-bootstrap/client-id.txt
+      ZITADEL_PROJECT_ID_FILE: /zitadel-bootstrap/project-id.txt
       PUBLIC_BABASKETET_APP_URL: ${PUBLIC_BABASKETET_APP_URL:-http://localhost:8081}
+      WILLIAM_PUBLIC_URL: ${WILLIAM_PUBLIC_URL:-http://localhost:3000}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-jonathanvivero@gmail.com}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-QWERTYUIOP-789456123!}
     volumes:
       - ./infra/zitadel/bootstrap.mjs:/bootstrap.mjs:ro
       - zitadel-bootstrap:/zitadel-bootstrap
@@ -151,6 +155,7 @@ services:
       ZITADEL_SERVICE_USER_TOKEN_FILE: /zitadel-bootstrap/login-client.pat
       ZITADEL_ADMIN_TOKEN_FILE: /zitadel-bootstrap/admin.pat
       ZITADEL_CLIENT_ID_FILE: /zitadel-bootstrap/client-id.txt
+      ZITADEL_PROJECT_ID_FILE: /zitadel-bootstrap/project-id.txt
       PUBLIC_RP_ID: ${PUBLIC_RP_ID:-localhost}
       PUBLIC_BABASKETET_APP_URL: ${PUBLIC_BABASKETET_APP_URL:-http://localhost:8081}
       SMS_PROVIDER: ${SMS_PROVIDER:-mock}
@@ -182,7 +187,11 @@ services:
       Auth__OidcIssuer: ${OIDC_ISSUER:-http://localhost:8085}
       Auth__OidcAuthority: ${ZITADEL_API_URL:-http://zitadel:8080}
       Auth__OidcAudience: ${OIDC_AUDIENCE:-babasketet}
+      Auth__OidcClientIdFile: /zitadel-bootstrap/client-id.txt
+      Auth__OidcProjectIdFile: /zitadel-bootstrap/project-id.txt
       Cors__AllowedOrigins: ${CORS_ALLOWED_ORIGINS:-http://localhost:8081,http://localhost:3000,http://localhost}
+    volumes:
+      - zitadel-bootstrap:/zitadel-bootstrap:ro
     ports:
       - "${API_PORT:-8080}:8080"
     networks:

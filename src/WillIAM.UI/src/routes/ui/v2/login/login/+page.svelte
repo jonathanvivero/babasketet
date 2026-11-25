@@ -16,6 +16,14 @@
 	let pendingSession = $state<{ sessionId: string; sessionToken: string; channel: 'email' | 'sms' } | null>(
 		null
 	);
+	let pendingPasswordChange = $state<{
+		userId: string;
+		sessionId: string;
+		sessionToken: string;
+		currentPassword: string;
+	} | null>(null);
+	let newPassword = $state('');
+	let confirmPassword = $state('');
 	let busy = $state(false);
 	let errorMessage = $state('');
 	let infoMessage = $state('');
@@ -35,6 +43,7 @@
 		errorMessage = '';
 		infoMessage = '';
 		pendingSession = null;
+		pendingPasswordChange = null;
 	}
 
 	async function postAuth(action: string, payload: Record<string, unknown>) {
@@ -54,6 +63,7 @@
 		e.preventDefault();
 		busy = true;
 		errorMessage = '';
+		infoMessage = '';
 		try {
 			const res = await postAuth('password', {
 				mode,
@@ -62,9 +72,44 @@
 				name,
 				authRequestId: data.authRequestId
 			});
+			if (res.requiresPasswordChange) {
+				pendingPasswordChange = {
+					userId: res.userId,
+					sessionId: res.sessionId,
+					sessionToken: res.sessionToken,
+					currentPassword: password
+				};
+				newPassword = '';
+				confirmPassword = '';
+				infoMessage = 'Por seguridad, debes cambiar tu contraseña en el primer acceso.';
+				return;
+			}
 			window.location.href = res.callbackUrl;
 		} catch (err) {
 			errorMessage = err instanceof Error ? err.message : 'Error de acceso';
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function submitPasswordChange(e: Event) {
+		e.preventDefault();
+		if (!pendingPasswordChange) return;
+		if (newPassword !== confirmPassword) {
+			errorMessage = 'Las contraseñas nuevas no coinciden.';
+			return;
+		}
+		busy = true;
+		errorMessage = '';
+		try {
+			const res = await postAuth('change-password', {
+				...pendingPasswordChange,
+				newPassword,
+				authRequestId: data.authRequestId
+			});
+			window.location.href = res.callbackUrl;
+		} catch (err) {
+			errorMessage = err instanceof Error ? err.message : 'No se pudo cambiar la contraseña';
 		} finally {
 			busy = false;
 		}
@@ -250,37 +295,67 @@
 					{/if}
 				</div>
 			{:else if selectedMethod.kind === 'password'}
-				<form class="form-stack" onsubmit={submitPassword}>
-					{#if mode === 'signup'}
+				{#if pendingPasswordChange}
+					<form class="form-stack" onsubmit={submitPasswordChange} data-testid="pwd-change-form">
 						<label>
-							<span>Nombre</span>
-							<input type="text" bind:value={name} placeholder="Tu nombre" data-testid="pwd-name-input" />
+							<span>Nueva contraseña</span>
+							<input
+								type="password"
+								required
+								minlength="8"
+								bind:value={newPassword}
+								placeholder="Mínimo 8 caracteres"
+								data-testid="pwd-new-input"
+							/>
 						</label>
-					{/if}
-					<label>
-						<span>Correo electrónico</span>
-						<input
-							type="email"
-							required
-							bind:value={email}
-							placeholder="tu@correo.com"
-							data-testid="pwd-email-input"
-						/>
-					</label>
-					<label>
-						<span>Contraseña</span>
-						<input
-							type="password"
-							required
-							bind:value={password}
-							placeholder="••••••••"
-							data-testid="pwd-password-input"
-						/>
-					</label>
-					<button type="submit" class="primary-btn" disabled={busy} data-testid="pwd-submit-btn">
-						{mode === 'signup' ? 'Registrarme' : 'Entrar'}
-					</button>
-				</form>
+						<label>
+							<span>Confirmar nueva contraseña</span>
+							<input
+								type="password"
+								required
+								minlength="8"
+								bind:value={confirmPassword}
+								placeholder="Repite la nueva contraseña"
+								data-testid="pwd-confirm-input"
+							/>
+						</label>
+						<button type="submit" class="primary-btn" disabled={busy} data-testid="pwd-change-submit-btn">
+							{busy ? 'Actualizando...' : 'Guardar contraseña y entrar'}
+						</button>
+					</form>
+				{:else}
+					<form class="form-stack" onsubmit={submitPassword}>
+						{#if mode === 'signup'}
+							<label>
+								<span>Nombre</span>
+								<input type="text" bind:value={name} placeholder="Tu nombre" data-testid="pwd-name-input" />
+							</label>
+						{/if}
+						<label>
+							<span>Correo electrónico</span>
+							<input
+								type="email"
+								required
+								bind:value={email}
+								placeholder="tu@correo.com"
+								data-testid="pwd-email-input"
+							/>
+						</label>
+						<label>
+							<span>Contraseña</span>
+							<input
+								type="password"
+								required
+								bind:value={password}
+								placeholder="••••••••"
+								data-testid="pwd-password-input"
+							/>
+						</label>
+						<button type="submit" class="primary-btn" disabled={busy} data-testid="pwd-submit-btn">
+							{mode === 'signup' ? 'Registrarme' : 'Entrar'}
+						</button>
+					</form>
+				{/if}
 			{:else if selectedMethod.kind === 'email-magic'}
 				{#if !pendingSession}
 					<form

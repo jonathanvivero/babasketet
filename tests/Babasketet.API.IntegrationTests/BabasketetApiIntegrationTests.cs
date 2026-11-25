@@ -6,6 +6,8 @@ using Babasketet.API.Infrastructure;
 using FluentAssertions;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
@@ -289,6 +291,169 @@ public sealed class BabasketetApiIntegrationTests(BabasketetApiFixture fixture)
 
         var basket = await client.GetFromJsonAsync<BasketResponse>($"/api/v1/houses/{houseId}/basket");
         basket!.Items.Should().ContainSingle(i => i.Name == "Leche Desnatada");
+    }
+
+    [Fact]
+    public async Task IT_API_13_Migrations_ShouldBeSyncAndReversibleUpDown()
+    {
+        using var scope = fixture.Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BabasketetDbContext>();
+
+        db.Database.HasPendingModelChanges().Should().BeFalse();
+
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync("20261125000001_InitialBaseline");
+        var appliedAfterDown = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+        appliedAfterDown.Should().Contain("20261125000001_InitialBaseline");
+        appliedAfterDown.Should().NotContain("20261125000002_AddAppUsersAndOwnershipRules");
+
+        await migrator.MigrateAsync("20261125000002_AddAppUsersAndOwnershipRules");
+        var appliedAfterUp = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+        appliedAfterUp.Should().Contain("20261125000002_AddAppUsersAndOwnershipRules");
+
+        await DatabaseInitializer.SeedCatalogsAsync(db);
+    }
+
+    [Fact]
+    public async Task IT_API_14_RoleAndOwnershipRules_GuestVsUserVsOwnerVsAdmin()
+    {
+        // 1. Invitado anónimo (Guest) crea una casa -> NO es owner, solo 'member' y GlobalRole='Guest'
+        using var anon = fixture.CreateClientWithToken();
+        var anonCreated = await (await anon.PostAsJsonAsync("/api/v1/houses", new CreateHouseRequest("Casa Guest")))
+            .Content.ReadFromJsonAsync<CreateHouseResponse>();
+        var houseAnonId = anonCreated!.House.Id;
+
+        using var guest1 = fixture.CreateClientWithToken(anonCreated.DeviceToken);
+        var guestMe = await guest1.GetFromJsonAsync<MeResponse>("/api/v1/me");
+        guestMe!.GlobalRole.Should().Be("Guest");
+        guestMe.IsAuthenticated.Should().BeFalse();
+        guestMe.IsAdmin.Should().BeFalse();
+        guestMe.EffectiveRoles.Should().Equal("Guest");
+        guestMe.Houses.Should().ContainSingle(h => h.HouseId == houseAnonId && h.HouseRole == "member");
+
+        // Invitación generada en casa Guest -> otro Guest se une como 'member'
+        var inv1 = await (await guest1.PostAsync($"/api/v1/houses/{houseAnonId}/invitations", null))
+            .Content.ReadFromJsonAsync<InvitationResponse>();
+        using var guest2Anon = fixture.CreateClientWithToken();
+        var guest2Joined = await (await guest2Anon.PostAsync($"/api/v1/invitations/{inv1!.Token}/join", null))
+            .Content.ReadFromJsonAsync<JoinInvitationResponse>();
+        using var guest2 = fixture.CreateClientWithToken(guest2Joined!.DeviceToken);
+
+        // El primer Guest se registra (User) y reclama la casa -> deja de ser Guest y queda como Owner
+        var user1Jwt = fixture.IssueZitadelJwt("registered-first", roles: ["User"], displayName: "Usuario Uno");
+        using var user1 = fixture.CreateClientWithToken(user1Jwt);
+        await user1.PostAsJsonAsync("/api/v1/houses/claim", new ClaimHouseRequest(anonCreated.DeviceToken));
+        var user1Me = await user1.GetFromJsonAsync<MeResponse>("/api/v1/me");
+        user1Me!.GlobalRole.Should().Be("User");
+        user1Me.IsAuthenticated.Should().BeTrue();
+        user1Me.EffectiveRoles.Should().Contain("User").And.Contain("Owner");
+        user1Me.Houses.Should().ContainSingle(h => h.HouseId == houseAnonId && h.HouseRole == "owner");
+
+        // El segundo Guest se registra después -> pasa a User pero queda como 'member' (ya existe Owner)
+        var user2Jwt = fixture.IssueZitadelJwt("registered-second", roles: ["User"]);
+        using var user2 = fixture.CreateClientWithToken(user2Jwt);
+        await user2.PostAsJsonAsync("/api/v1/houses/claim", new ClaimHouseRequest(guest2Joined.DeviceToken));
+        var user2Me = await user2.GetFromJsonAsync<MeResponse>("/api/v1/me");
+        user2Me!.Houses.Should().ContainSingle(h => h.HouseId == houseAnonId && h.HouseRole == "member");
+
+        // Casa Guest (sin usuarios registrados) invita a un User ya registrado -> al canjear queda como Owner
+        using var anonOther = fixture.CreateClientWithToken();
+        var anonHouse2 = await (await anonOther.PostAsJsonAsync("/api/v1/houses", new CreateHouseRequest("Casa Sin User")))
+            .Content.ReadFromJsonAsync<CreateHouseResponse>();
+        using var guestOwnerless = fixture.CreateClientWithToken(anonHouse2!.DeviceToken);
+        var inv2 = await (await guestOwnerless.PostAsync($"/api/v1/houses/{anonHouse2.House.Id}/invitations", null))
+            .Content.ReadFromJsonAsync<InvitationResponse>();
+
+        var user3Jwt = fixture.IssueZitadelJwt("registered-invited", roles: ["User"]);
+        using var user3 = fixture.CreateClientWithToken(user3Jwt);
+        (await user3.PostAsync($"/api/v1/invitations/{inv2!.Token}/join", null)).EnsureSuccessStatusCode();
+        var user3Me = await user3.GetFromJsonAsync<MeResponse>("/api/v1/me");
+        user3Me!.Houses.Should().ContainSingle(h => h.HouseId == anonHouse2.House.Id && h.HouseRole == "owner");
+
+        // Un User normal recibe 403 al intentar acceder al panel /api/v1/admin/*
+        var forbiddenResp = await user1.GetAsync("/api/v1/admin/houses");
+        forbiddenResp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task IT_API_15_AdminPanelEndpoints_ShouldManageHousesUsersBlockingAndGroupedItems()
+    {
+        var userJwt = fixture.IssueZitadelJwt("owner-user", roles: ["User"], displayName: "Dueño Casa");
+        using var userClient = fixture.CreateClientWithToken(userJwt);
+
+        var h1 = (await (await userClient.PostAsJsonAsync("/api/v1/houses", new CreateHouseRequest("Casa Norte")))
+            .Content.ReadFromJsonAsync<CreateHouseResponse>())!.House;
+        var h2 = (await (await userClient.PostAsJsonAsync("/api/v1/houses", new CreateHouseRequest("Casa Sur")))
+            .Content.ReadFromJsonAsync<CreateHouseResponse>())!.House;
+
+        var types = await userClient.GetFromJsonAsync<List<ProductTypeDto>>($"/api/v1/houses/{h1.Id}/product-types");
+        var dairyTypeId = types!.First(t => t.Name == "Lacteos").Id;
+        var fruitTypeId = types!.First(t => t.Name == "Fruta/Verdura").Id;
+
+        // Añadir mismo término exacto (case-insensitive) y mismo tipo en 2 casas -> "2 casas"
+        await userClient.PostAsJsonAsync($"/api/v1/houses/{h1.Id}/list/items",
+            new AddListItemRequest(null, "Leche", dairyTypeId, "L"));
+        await userClient.PostAsJsonAsync($"/api/v1/houses/{h2.Id}/list/items",
+            new AddListItemRequest(null, "leche", dairyTypeId, "L"));
+        // Término distinto por tipo
+        await userClient.PostAsJsonAsync($"/api/v1/houses/{h1.Id}/list/items",
+            new AddListItemRequest(null, "Piña", fruitTypeId, "Ud"));
+
+        var listItem = await (await userClient.PostAsJsonAsync($"/api/v1/houses/{h1.Id}/list/items",
+            new AddListItemRequest(null, "Arroz", null, "Kg"))).Content.ReadFromJsonAsync<ShoppingListItemDto>();
+        await userClient.PostAsync($"/api/v1/houses/{h1.Id}/list/items/{listItem!.Id}/move-to-basket", null);
+
+        // Login como Admin (seed email o rol Admin)
+        var adminJwt = fixture.IssueZitadelJwt(
+            "admin-jonathan",
+            roles: ["User", "Admin"],
+            email: "jonathanvivero@gmail.com",
+            displayName: "Jonathan Vivero");
+        using var adminClient = fixture.CreateClientWithToken(adminJwt);
+
+        var houses = await adminClient.GetFromJsonAsync<List<AdminHouseSummaryDto>>("/api/v1/admin/houses");
+        houses.Should().HaveCount(2);
+
+        var detailH1 = await adminClient.GetFromJsonAsync<AdminHouseDetailDto>($"/api/v1/admin/houses/{h1.Id}");
+        detailH1!.Members.Should().ContainSingle(m => m.HouseRole == "owner");
+        detailH1.TotalProductsCount.Should().Be(3);
+        detailH1.ListItems.Should().HaveCount(2);
+        detailH1.BasketItems.Should().ContainSingle(b => b.Name == "Arroz");
+
+        // Listado global de ítems agrupado + ordenado alfabéticamente + filtro texto
+        var allItems = await adminClient.GetFromJsonAsync<List<AdminCatalogItemDto>>("/api/v1/admin/items");
+        allItems!.Select(i => i.Name).Should().BeInAscendingOrder(StringComparer.OrdinalIgnoreCase);
+        allItems.Should().ContainSingle(i =>
+            i.Name.Equals("leche", StringComparison.OrdinalIgnoreCase) &&
+            i.HouseCount == 2 &&
+            i.LocationLabel == "2 casas");
+        allItems.Should().ContainSingle(i =>
+            i.Name == "Piña" &&
+            i.HouseCount == 1 &&
+            i.LocationLabel == "Casa Norte");
+
+        var filtered = await adminClient.GetFromJsonAsync<List<AdminCatalogItemDto>>("/api/v1/admin/items?q=piña");
+        filtered.Should().ContainSingle(i => i.Name == "Piña");
+
+        // Edición de usuario y bloqueo inmediato
+        var users = await adminClient.GetFromJsonAsync<List<AdminUserSummaryDto>>("/api/v1/admin/users");
+        var ownerUser = users!.Single(u => u.ZitadelUserId == "owner-user");
+
+        var updateResp = await adminClient.PutAsJsonAsync($"/api/v1/admin/users/{ownerUser.Id}",
+            new AdminUpdateUserRequest(
+                "Blocked",
+                false,
+                "Dueño Editado",
+                new Dictionary<string, string> { ["nota"] = "Prueba BD" },
+                [new AdminUserHouseRoleUpdate(h1.Id, true)]));
+        updateResp.EnsureSuccessStatusCode();
+        var updatedUser = await updateResp.Content.ReadFromJsonAsync<AdminUserDetailDto>();
+        updatedUser!.Status.Should().Be("Blocked");
+        updatedUser.CustomProperties["nota"].Should().Be("Prueba BD");
+
+        // El usuario bloqueado ya no puede acceder a sus endpoints -> 403 USER_BLOCKED
+        var blockedCall = await userClient.GetAsync("/api/v1/houses");
+        blockedCall.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     private HubConnection CreateHubConnection(string token)

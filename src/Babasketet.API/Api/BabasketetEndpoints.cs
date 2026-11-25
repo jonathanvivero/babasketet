@@ -9,6 +9,11 @@ public static class BabasketetEndpoints
     {
         var v1 = app.MapGroup("/api/v1");
 
+        // === Perfil del llamante (/api/v1/me) ===
+        v1.MapGet("/me", async (HttpContext http, UserDirectoryService userDir, CancellationToken ct) =>
+            Results.Ok(await userDir.GetMeAsync(ExtractBearer(http), ct)))
+            .AllowAnonymous();
+
         // === Casas e Invitaciones ===
         v1.MapGet("/houses", async (HouseService svc, CancellationToken ct) =>
             Results.Ok(await svc.GetMyHousesAsync(ct)))
@@ -140,8 +145,37 @@ public static class BabasketetEndpoints
             return Results.Ok();
         }).RequireAuthorization();
 
+        // === Panel de Administración (/api/v1/admin/* - solo Admin) ===
+        var admin = v1.MapGroup("/admin").RequireAuthorization();
+
+        admin.MapGet("/houses", async (HttpContext http, AdminService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetHousesAsync(ExtractBearer(http), ct)));
+
+        admin.MapGet("/houses/{houseId:guid}", async (Guid houseId, HttpContext http, AdminService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetHouseDetailAsync(houseId, ExtractBearer(http), ct)));
+
+        admin.MapGet("/users", async (HttpContext http, AdminService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetUsersAsync(ExtractBearer(http), ct)));
+
+        admin.MapGet("/users/{userId:guid}", async (Guid userId, HttpContext http, AdminService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetUserDetailAsync(userId, ExtractBearer(http), ct)));
+
+        admin.MapPut("/users/{userId:guid}", async (Guid userId, AdminUpdateUserRequest req, HttpContext http, AdminService svc, CancellationToken ct) =>
+            Results.Ok(await svc.UpdateUserAsync(userId, req, ExtractBearer(http), ct)));
+
+        admin.MapGet("/items", async (string? q, HttpContext http, AdminService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetItemsAsync(q, ExtractBearer(http), ct)));
+
         app.MapHub<HouseHub>("/hubs/house");
 
         return app;
+    }
+
+    private static string? ExtractBearer(HttpContext http)
+    {
+        var authHeader = http.Request.Headers.Authorization.FirstOrDefault();
+        return authHeader?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true
+            ? authHeader["Bearer ".Length..].Trim()
+            : null;
     }
 }

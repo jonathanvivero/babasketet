@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../houses/account_dialog.dart';
 import '../houses/house_providers.dart';
@@ -232,6 +233,19 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                                   triggerOidcAccountFlow(context, ref),
                               icon: const Icon(Icons.login_rounded),
                               label: const Text('Ya tengo cuenta (WillIAM · Passkey / SSO)'),
+                            ),
+                          ),
+                        ],
+                        if (state.isAdmin) ...[
+                          const SizedBox(height: 8),
+                          Semantics(
+                            container: true,
+                            identifier: 'onboarding_admin_bo_btn',
+                            button: true,
+                            child: OutlinedButton.icon(
+                              onPressed: () => context.go('/admin-bo'),
+                              icon: const Icon(Icons.admin_panel_settings_rounded),
+                              label: const Text('Panel de Administración (/admin-bo)'),
                             ),
                           ),
                         ],

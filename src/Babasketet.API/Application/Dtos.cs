@@ -3,10 +3,15 @@ namespace Babasketet.API.Application;
 public sealed record CallerIdentity(
     string? UserId,
     Guid? DeviceId,
-    bool IsPremium)
+    bool IsPremium,
+    string? Email = null,
+    string? DisplayName = null,
+    IReadOnlyCollection<string>? Roles = null)
 {
     public bool IsRegistered => !string.IsNullOrWhiteSpace(UserId);
     public bool IsAnonymous => !IsRegistered && DeviceId.HasValue;
+    public bool HasRole(string role) =>
+        Roles?.Any(r => string.Equals(r, role, StringComparison.OrdinalIgnoreCase)) == true;
 }
 
 public interface ICallerContextAccessor
@@ -175,3 +180,127 @@ public sealed record PurchaseDetailDto(
     IReadOnlyList<PurchaseItemDto> Items);
 
 public sealed record UpdateManualTotalRequest(decimal ManualTotal);
+
+// === Perfil del llamante y Panel Admin (/admin-bo) ===
+public sealed record MeHouseRoleDto(
+    Guid HouseId,
+    string HouseName,
+    string HouseRole);
+
+public sealed record MeResponse(
+    Guid? AppUserId,
+    string? ZitadelUserId,
+    Guid? DeviceId,
+    string GlobalRole,
+    bool IsAuthenticated,
+    bool IsAdmin,
+    string Status,
+    string? Email,
+    string? DisplayName,
+    IReadOnlyList<string> EffectiveRoles,
+    IReadOnlyList<MeHouseRoleDto> Houses);
+
+public sealed record AdminHouseSummaryDto(
+    Guid Id,
+    string Name,
+    string ActiveStoreName,
+    int MemberCount,
+    int TotalProductsCount,
+    int ListItemsCount,
+    int BasketItemsCount,
+    int PurchasesCount,
+    DateTimeOffset CreatedAt);
+
+public sealed record AdminHouseMemberDto(
+    Guid MembershipId,
+    Guid? AppUserId,
+    string? ZitadelUserId,
+    Guid? DeviceId,
+    string DisplayName,
+    string? Email,
+    string GlobalRole,
+    bool IsAuthenticated,
+    bool IsAdmin,
+    string UserStatus,
+    string HouseRole,
+    DateTimeOffset JoinedAt);
+
+public sealed record AdminSimpleItemDto(
+    Guid Id,
+    Guid ProductId,
+    string Name,
+    string? ProductTypeName,
+    string? ProductTypeFillHex,
+    string Format,
+    decimal? Quantity);
+
+public sealed record AdminHouseDetailDto(
+    Guid Id,
+    string Name,
+    string ActiveStoreName,
+    DateTimeOffset CreatedAt,
+    int TotalProductsCount,
+    IReadOnlyList<AdminHouseMemberDto> Members,
+    IReadOnlyList<AdminSimpleItemDto> ListItems,
+    IReadOnlyList<AdminSimpleItemDto> BasketItems,
+    IReadOnlyList<PurchaseDetailDto> Purchases);
+
+public sealed record AdminUserHouseMembershipDto(
+    Guid HouseId,
+    string HouseName,
+    string HouseRole,
+    DateTimeOffset JoinedAt);
+
+public sealed record AdminUserSummaryDto(
+    Guid Id,
+    string? ZitadelUserId,
+    Guid? DeviceId,
+    string DisplayName,
+    string? Email,
+    string Status,
+    string GlobalRole,
+    bool IsAdmin,
+    bool IsAuthenticated,
+    IReadOnlyList<string> EffectiveRoles,
+    int HousesCount,
+    int OwnedHousesCount,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset LastSeenAt);
+
+public sealed record AdminUserDetailDto(
+    Guid Id,
+    string? ZitadelUserId,
+    Guid? DeviceId,
+    string DisplayName,
+    string? Email,
+    string Status,
+    string GlobalRole,
+    bool IsAdmin,
+    bool IsAuthenticated,
+    string AuthMethod,
+    IReadOnlyList<string> EffectiveRoles,
+    IReadOnlyDictionary<string, string> CustomProperties,
+    IReadOnlyList<AdminUserHouseMembershipDto> Houses,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset LastSeenAt);
+
+public sealed record AdminUserHouseRoleUpdate(
+    Guid HouseId,
+    bool IsOwner);
+
+public sealed record AdminUpdateUserRequest(
+    string Status,
+    bool IsAdmin,
+    string? DisplayName,
+    IReadOnlyDictionary<string, string>? CustomProperties,
+    IReadOnlyList<AdminUserHouseRoleUpdate>? HouseRoles);
+
+public sealed record AdminCatalogItemDto(
+    string NormalizedName,
+    string Name,
+    Guid? ProductTypeId,
+    string ProductTypeName,
+    string? ProductTypeFillHex,
+    int HouseCount,
+    Guid? SingleHouseId,
+    string LocationLabel);

@@ -354,4 +354,73 @@ class BabasketetApiClient {
           data: {'manualTotal': manualTotal},
         );
       });
+
+  Future<MeResponse> getMe() => _wrap(() async {
+        final res = await _dio.get<Map<String, dynamic>>('/api/v1/me');
+        return MeResponse.fromJson(res.data!);
+      });
+
+  Future<List<AdminHouseSummaryDto>> adminGetHouses() => _wrap(() async {
+        final res = await _dio.get<List<dynamic>>('/api/v1/admin/houses');
+        return res.data!
+            .map((e) => AdminHouseSummaryDto.fromJson(e as Map<String, dynamic>))
+            .toList();
+      });
+
+  Future<AdminHouseDetailDto> adminGetHouseDetail(String houseId) =>
+      _wrap(() async {
+        final res =
+            await _dio.get<Map<String, dynamic>>('/api/v1/admin/houses/$houseId');
+        return AdminHouseDetailDto.fromJson(res.data!);
+      });
+
+  Future<List<AdminUserSummaryDto>> adminGetUsers() => _wrap(() async {
+        final res = await _dio.get<List<dynamic>>('/api/v1/admin/users');
+        return res.data!
+            .map((e) => AdminUserSummaryDto.fromJson(e as Map<String, dynamic>))
+            .toList();
+      });
+
+  Future<AdminUserDetailDto> adminGetUserDetail(String userId) =>
+      _wrap(() async {
+        final res =
+            await _dio.get<Map<String, dynamic>>('/api/v1/admin/users/$userId');
+        return AdminUserDetailDto.fromJson(res.data!);
+      });
+
+  Future<AdminUserDetailDto> adminUpdateUser(
+    String userId, {
+    required String status,
+    required bool isAdmin,
+    String? displayName,
+    Map<String, String>? customProperties,
+    List<({String houseId, bool isOwner})>? houseRoles,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.put<Map<String, dynamic>>(
+          '/api/v1/admin/users/$userId',
+          data: {
+            'status': status,
+            'isAdmin': isAdmin,
+            'displayName': displayName,
+            'customProperties': customProperties,
+            'houseRoles': houseRoles
+                ?.map((h) => {'houseId': h.houseId, 'isOwner': h.isOwner})
+                .toList(),
+          },
+        );
+        return AdminUserDetailDto.fromJson(res.data!);
+      });
+
+  Future<List<AdminCatalogItemDto>> adminGetItems({String? query}) =>
+      _wrap(() async {
+        final res = await _dio.get<List<dynamic>>(
+          '/api/v1/admin/items',
+          queryParameters:
+              query != null && query.trim().isNotEmpty ? {'q': query.trim()} : null,
+        );
+        return res.data!
+            .map((e) => AdminCatalogItemDto.fromJson(e as Map<String, dynamic>))
+            .toList();
+      });
 }
