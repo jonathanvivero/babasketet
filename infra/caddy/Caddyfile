@@ -1,0 +1,25 @@
+# Reverse Proxy para desarrollo local unificado en http://localhost (puerto 80)
+# Ademas cada servicio expone su puerto directo en docker-compose.yml para depuracion rapida.
+
+:80 {
+	encode zstd gzip
+
+	@api path /api/* /hubs/* /health/* /swagger*
+	handle @api {
+		reverse_proxy api:8080
+	}
+
+	@login path /ui/v2/login*
+	handle @login {
+		reverse_proxy william-ui:3000
+	}
+
+	@auth path /oauth/* /oidc/* /v2/* /.well-known/* /ui/console* /assets/* /debug/*
+	handle @auth {
+		reverse_proxy zitadel:8080
+	}
+
+	handle {
+		reverse_proxy web:80
+	}
+}
