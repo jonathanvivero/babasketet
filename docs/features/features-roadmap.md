@@ -94,11 +94,11 @@ Gestionar ágilmente los productos pendientes de comprar con autocompletado, reo
 - **AC-F4.2 (Defaults del ítem y color)**:
   - *When* añade `"Tomates"` sin especificar tipo, formato ni precio
   - *Then* se guarda con `Formato = Ud.`, `Precio = 0,00`, `Tipo = null` y se muestra en fuente **negra** sin círculo de color.
-- **AC-F4.3 (Long-press > 2s y asignación de Tipo)**:
-  - *When* el usuario mantiene pulsado un item durante **más de 2 segundos**
-  - *Then* se abre el popup con desplegable de Tipos (círculo con color de fondo y borde + nombre, los 18 por defecto + personalizados) y opción para crear un tipo nuevo (nombre, color y borde).
-  - *When* selecciona `Fruta/Verdura`
-  - *Then* el item muestra a su izquierda el círculo verde claro sin borde.
+- **AC-F4.3 (Long-press 800 ms, edición de nombre y asignación de Tipo)**:
+  - *When* el usuario mantiene pulsado un item durante **800 ms**
+  - *Then* se abre el popup donde puede **editar el nombre del item**, elegir un Tipo en el desplegable (círculo con color de fondo y borde + nombre, los 18 por defecto + personalizados) o crear un tipo nuevo (nombre, color y borde).
+  - *When* cambia el nombre o selecciona `Fruta/Verdura`
+  - *Then* el nuevo nombre persiste y el item muestra a su izquierda el círculo verde claro sin borde.
 - **AC-F4.4 (Reordenación)**:
   - *When* el usuario arrastra un item a otra posición
   - *Then* el nuevo orden persiste en BD y se refleja en los demás dispositivos.
@@ -125,9 +125,9 @@ Simular el carrito físico en el supermercado: ajustar unidades por gesto vertic
 - **AC-F5.3 (Swipe izquierda en Cesta)**:
   - *When* el usuario desliza el producto hacia la **izquierda**
   - *Then* el producto vuelve a la pestaña `Lista`.
-- **AC-F5.4 (Long-press > 2s en Cesta)**:
-  - *When* mantiene pulsado un producto > 2 segundos
-  - *Then* aparece popup con 4 acciones: **Eliminar** (desaparece sin volver a Lista), **Cambiar ud.**, **Cambiar tipo**, **Cambiar formato** (`Ud`, `Docena`, `Kg`, `g`, `L`, `Cl`, `Pack-2`, `Pack-3`, `Pack-4`, `Pack-6`, `Pack-8`).
+- **AC-F5.4 (Long-press 800 ms en Cesta)**:
+  - *When* mantiene pulsado un producto durante **800 ms**
+  - *Then* aparece popup con 5 acciones: **Cambiar nombre**, **Eliminar** (desaparece sin volver a Lista), **Cambiar ud.**, **Cambiar tipo**, **Cambiar formato** (`Ud`, `Docena`, `Kg`, `g`, `L`, `Cl`, `Pack-2`, `Pack-3`, `Pack-4`, `Pack-6`, `Pack-8`).
 - **AC-F5.5 (Consignar precio y versionado SCD-2)**:
   - *When* toca el precio de un producto → aparece el teclado numérico del teléfono con el último precio (o `0,00`).
   - *When* guarda un precio distinto (ej. pasa de `1,05` a `1,15`) para `(Producto, Supermercado)`

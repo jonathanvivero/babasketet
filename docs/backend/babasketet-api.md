@@ -154,7 +154,7 @@ WHERE product_id = @productId
 | Método | Ruta | Descripción |
 | :--- | :--- | :--- |
 | `GET` | `/api/v1/houses/{houseId}/basket` | Devuelve los items en la Cesta, el precio vigente para el supermercado activo (si existe) y el `total`. |
-| `PATCH` | `/api/v1/houses/{houseId}/basket/items/{itemId}` | Actualiza `quantity`, `productTypeId` o `format`. |
+| `PATCH` | `/api/v1/houses/{houseId}/basket/items/{itemId}` | Actualiza `name`, `quantity`, `productTypeId` o `format`. |
 | `PUT` | `/api/v1/houses/{houseId}/basket/items/{itemId}/price` | Consigna el precio para `(productId, activeStoreId)` ejecutando la lógica SCD-2 en `product_price_history`. |
 | `POST` | `/api/v1/houses/{houseId}/basket/items/{itemId}/move-to-list` | Devuelve el item de `Cesta` a `Lista` (swipe izquierda). |
 | `DELETE` | `/api/v1/houses/{houseId}/basket/items/{itemId}` | Elimina el item definitivamente de la `Cesta` (opción "Eliminar" en long-press). |

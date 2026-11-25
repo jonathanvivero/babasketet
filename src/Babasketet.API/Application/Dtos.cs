@@ -130,7 +130,8 @@ public sealed record UpdateBasketItemRequest(
     decimal? Quantity,
     Guid? ProductTypeId,
     bool ClearProductType,
-    string? Format);
+    string? Format,
+    string? Name = null);
 
 public sealed record SetPriceRequest(decimal Price);
 

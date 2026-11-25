@@ -63,7 +63,7 @@ tests/e2e-playwright/
 
 ### `04-list-gestures-and-types.spec.ts` — Pestaña `Lista`
 - **E2E-11**: Añadir `"Manzanas"` con la caja de texto y botón derecho; usar el botón izquierdo para re-seleccionar un item usado anteriormente; usar el botón redondo `[+]` y comprobar sugerencias mientras escribe.
-- **E2E-12**: Verificar texto en **negro** sin círculo por defecto; realizar **long-press de 2.1 segundos** → abrir popup → asignar `Fruta/Verdura` → verificar indicador visual del tipo.
+- **E2E-12**: Verificar texto en **negro** sin círculo por defecto; realizar **long-press (~900 ms)** → abrir popup → **editar el nombre** y asignar `Fruta/Verdura` → verificar nuevo nombre e indicador visual del tipo.
 - **E2E-13**: Crear un **tipo personalizado** (nombre, color de fondo y borde) desde el popup y asignarlo a un item.
 - **E2E-14**: **Reordenar** 2 items mediante drag & drop y recargar página para confirmar persistencia del orden.
 - **E2E-15**: **Swipe derecha** sobre un item lo mueve a `Cesta`; **Swipe izquierda** sobre otro lo elimina de `Lista`.
@@ -72,7 +72,7 @@ tests/e2e-playwright/
 - **E2E-16**: En `Cesta`, tocar la unidad (`1 ud.`) y deslizar hacia arriba → pasa a `2 ud.`; deslizar hacia abajo → vuelve a `1 ud.`.
 - **E2E-17**: Consignar precio (`2,50`) para `"Leche"` en `Mercadona` → verificar actualización del **Total** (`SUM(precio * unidades)`). Cambiar supermercado a `Lidl` → verificar que no se muestra precio para `"Leche"`; volver a `Mercadona` → vuelve a mostrarse `2,50`.
 - **E2E-18**: Actualizar precio de `2,50` a `2,75` en `Mercadona` y confirmar que el nuevo precio rige el Total.
-- **E2E-19**: **Long-press > 2s** en `Cesta` → cambiar formato a `Pack-6` y cambiar unidades desde el popup; probar opción **Eliminar** (desaparece sin volver a `Lista`).
+- **E2E-19**: **Long-press (~900 ms)** en `Cesta` → **editar el nombre**, cambiar formato a `Pack-6` y cambiar unidades desde el popup; probar opción **Eliminar** (desaparece sin volver a `Lista`).
 - **E2E-20**: **Swipe izquierda** en `Cesta` devuelve el producto a `Lista`.
 - **E2E-21**: Pulsar **"Efectuar Compra"** → verificar diálogo de confirmación → confirmar → la `Cesta` queda vacía y la compra aparece en `Compras`.
 
