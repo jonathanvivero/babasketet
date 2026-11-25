@@ -168,5 +168,10 @@ Garantizar que 3 o más dispositivos conectados a la misma casa vean cambios en 
   - *Given* Dispositivo A, Dispositivo B y Dispositivo C abiertos en la misma casa
   - *When* Dispositivo A añade `"Pan"` en `Lista` y Dispositivo B lo mueve a `Cesta`
   - *Then* Dispositivo C refleja ambos cambios automáticamente (< 1 segundo en red estable) vía SignalR.
-- **AC-F7.2 (Instalabilidad PWA)**:
-  - *Then* `Babasketet.WEB` cumple los criterios de instalabilidad PWA (HTTPS, `manifest.json` válido, Service Worker registrado).
+- **AC-F7.2 (Instalabilidad PWA, icono y aviso en 1ª visita)**:
+  - *Given* un usuario visita la app web por primera vez fuera del modo `standalone`
+  - *Then* ve un aviso invitándole a instalar la PWA como app en su dispositivo (con soporte de `beforeinstallprompt` o guía iOS) que no vuelve a aparecer tras descartarlo.
+  - *Then* `Babasketet.WEB` cumple los criterios de instalabilidad PWA (`manifest.json` válido, Service Worker, favicon e iconos de la piña entrando en la cesta de baloncesto sobre fondo naranja).
+- **AC-F7.3 (Acceso a cuenta persistente en App instalada)**:
+  - *Given* el usuario abre la app instalada (`standalone`) directamente sobre una casa anónima
+  - *Then* dispone de acceso visible en la barra superior (`account_btn`) y en el menú lateral para crear cuenta o iniciar sesión en `WillIAM` mediante flujo seguro sin perder su casa local.

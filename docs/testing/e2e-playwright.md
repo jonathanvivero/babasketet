@@ -89,6 +89,13 @@ tests/e2e-playwright/
 
 ---
 
+### `08-pwa-install-and-account.spec.ts` — Prompt PWA, Icono y Cuenta en App Instalada
+- **E2E-26**: En la primera visita aparece `pwa_install_banner`; al cerrarlo y recargar la página no vuelve a aparecer.
+- **E2E-27**: `manifest.json`, `favicon.png`, `icons/Icon-192.png` y `icons/Icon-512.png` responden `200 OK` con iconos válidos.
+- **E2E-28**: En el Dashboard (y simulando modo `standalone`), el botón de cuenta (`account_btn`) permanece visible y abre el diálogo con acceso a `"Crear cuenta / Iniciar sesión"`.
+
+---
+
 ## 4. Ejecución en Docker / CI
 
 La suite corre completamente contenedorizada usando la imagen oficial `mcr.microsoft.com/playwright` dentro de un perfil dedicado de Docker Compose:

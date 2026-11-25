@@ -4,10 +4,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/pwa/pwa_install.dart';
 import 'core/router/url_strategy.dart';
 import 'features/dashboard/dashboard_page.dart';
 import 'features/houses/house_providers.dart';
 import 'features/houses/onboarding_page.dart';
+import 'features/pwa/pwa_install_banner.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,7 +31,10 @@ class _BabasketetAppState extends ConsumerState<BabasketetApp> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(houseControllerProvider.notifier).bootstrap());
+    Future.microtask(() async {
+      await ref.read(houseControllerProvider.notifier).bootstrap();
+      await evaluateFirstVisitInstallPrompt(ref);
+    });
 
     _router = GoRouter(
       routes: [
@@ -168,6 +173,9 @@ class _AuthCallbackHandlerState extends ConsumerState<_AuthCallbackHandler> {
     final code = widget.code;
     if (code == null || code.isEmpty) {
       setState(() => _error = 'Falta el código de autorización.');
+      return;
+    }
+    if (PwaInstallAdapter.tryNotifyOpenerAndClose(code)) {
       return;
     }
     try {

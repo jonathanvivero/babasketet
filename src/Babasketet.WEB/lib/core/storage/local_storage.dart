@@ -6,6 +6,7 @@ class LocalStorageService {
   static const _kActiveHouseId = 'babasketet.active_house_id';
   static const _kHouseIds = 'babasketet.house_ids';
   static const _kPkceVerifier = 'babasketet.pkce_verifier';
+  static const _kInstallPromptSeen = 'babasketet.pwa_install_prompted';
 
   Future<String?> getDeviceToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -71,5 +72,15 @@ class LocalStorageService {
     final v = prefs.getString(_kPkceVerifier);
     await prefs.remove(_kPkceVerifier);
     return v;
+  }
+
+  Future<bool> hasSeenInstallPrompt() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_kInstallPromptSeen) ?? false;
+  }
+
+  Future<void> markInstallPromptSeen() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kInstallPromptSeen, true);
   }
 }
