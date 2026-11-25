@@ -1,11 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/pwa/pwa_install.dart';
 import '../basket/basket_tab.dart';
+import '../houses/account_dialog.dart';
 import '../houses/house_providers.dart';
 import '../houses/onboarding_page.dart';
 import '../houses/share_house_dialog.dart';
 import '../purchases/purchases_tab.dart';
+import '../pwa/pwa_install_banner.dart';
 import '../shopping_list/list_tab.dart';
 import '../stores/store_selector_sheet.dart';
 
@@ -94,17 +98,47 @@ class DashboardPage extends ConsumerWidget {
                     );
                   },
                 ),
+                if (kIsWeb && !PwaInstallAdapter.isRunningStandalone)
+                  Semantics(
+                    container: true,
+                    identifier: 'drawer_install_pwa_btn',
+                    button: true,
+                    child: ListTile(
+                      leading: const Icon(Icons.install_mobile_rounded),
+                      title: const Text('Instalar como App (PWA)'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        showPwaInstallGuideDialog(context);
+                      },
+                    ),
+                  ),
                 const Divider(),
-                if (!state.isRegistered)
-                  ListTile(
-                    leading: const Icon(Icons.key_rounded),
-                    title: const Text('Guardar sesión (WillIAM · Passkey/SSO)'),
-                    subtitle: const Text('Amplía de 1 a 4 casas'),
+                Semantics(
+                  container: true,
+                  identifier: 'drawer_account_btn',
+                  button: true,
+                  child: ListTile(
+                    leading: Icon(
+                      state.isRegistered
+                          ? Icons.verified_user_rounded
+                          : Icons.key_rounded,
+                    ),
+                    title: Text(
+                      state.isRegistered
+                          ? 'Cuenta WillIAM conectada'
+                          : 'Crear cuenta / Guardar sesión (WillIAM)',
+                    ),
+                    subtitle: Text(
+                      state.isRegistered
+                          ? 'Hasta 4 casas persistidas'
+                          : 'Passkey, Email, Teléfono o SSO · Amplía a 4 casas',
+                    ),
                     onTap: () {
                       Navigator.of(context).pop();
-                      ref.read(oidcServiceProvider).startLogin();
+                      showAccountDialog(context, ref);
                     },
                   ),
+                ),
               ],
             ),
           ),
@@ -142,6 +176,22 @@ class DashboardPage extends ConsumerWidget {
           actions: [
             Semantics(
               container: true,
+              identifier: 'account_btn',
+              button: true,
+              child: IconButton(
+                tooltip: state.isRegistered
+                    ? 'Cuenta WillIAM conectada'
+                    : 'Crear cuenta / Guardar sesión',
+                icon: Icon(
+                  state.isRegistered
+                      ? Icons.verified_user_rounded
+                      : Icons.person_add_alt_1_rounded,
+                ),
+                onPressed: () => showAccountDialog(context, ref),
+              ),
+            ),
+            Semantics(
+              container: true,
               identifier: 'share_house_btn',
               button: true,
               child: IconButton(
@@ -176,11 +226,18 @@ class DashboardPage extends ConsumerWidget {
             ],
           ),
         ),
-        body: const TabBarView(
+        body: const Column(
           children: [
-            ListTab(),
-            BasketTab(),
-            PurchasesTab(),
+            PwaInstallBanner(),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  ListTab(),
+                  BasketTab(),
+                  PurchasesTab(),
+                ],
+              ),
+            ),
           ],
         ),
       ),

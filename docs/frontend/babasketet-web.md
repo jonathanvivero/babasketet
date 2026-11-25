@@ -34,11 +34,17 @@ lib/
 ## 2. Requisitos PWA
 
 - `web/manifest.json`:
-  - `name`: `"Babasketet"`
-  - `short_name`: `"Babasketet"`
+  - `id`: `"/"`, `start_url`: `"/"`, `scope`: `"/"`
+  - `name`: `"Babasketet"`, `short_name`: `"Babasketet"`
   - `display`: `"standalone"`
-  - `start_url`: `"/"`
-  - Iconos maskable `192x192` y `512x512`.
+  - `background_color` / `theme_color`: `"#FFB347"`
+  - Iconos (`favicon.png`, `apple-touch-icon.png`, `Icon-192.png`, `Icon-512.png`): ilustración de una piña entrando en una cesta de baloncesto con líneas negras sobre fondo naranja medio claro.
+- **Aviso de instalación en primera visita (`PwaInstallBanner`)**:
+  - `web/index.html` captura `beforeinstallprompt` antes del arranque de Flutter.
+  - En la primera visita fuera de modo `standalone`, se muestra un banner no bloqueante con opción directa de instalación nativa (Chromium/Android) o guía rápida (iOS Safari) y se recuerda la respuesta para no repetirlo tras cerrarlo.
+- **Cuenta persistente en App instalada (`standalone`)**:
+  - Botón de cuenta siempre accesible en el `AppBar` de `DashboardPage` (`account_btn`) además del menú lateral y Onboarding.
+  - En modo `standalone`, el flujo OIDC PKCE intenta abrir un popup (`window.open`) con retorno por `postMessage` en `/auth/callback` para mantener intacta la ventana instalada y su `deviceToken` local (con fallback automático a `_self` si el navegador bloquea popups).
 - **Service Worker**: Cacheo de shell de la aplicación para arranque instantáneo y funcionamiento offline básico dentro del supermercado.
 - **Contenedor Docker**: Build multi-stage (`ghcr.io/cirruslabs/flutter` → `nginx:alpine`) con `try_files $uri $uri/ /index.html;` para que cualquier deep-link como `/join/<token>` cargue directamente la PWA.
 

@@ -66,6 +66,7 @@ La pirámide de testing de **Babasketet** garantiza que cada regla de dominio, r
 - `WT-WEB-06`: **Teclado numérico y formato decimal**: introducir `1,95` actualiza el precio y recalcula el total visible en la barra inferior de `Cesta`.
 - `WT-WEB-07`: **Modal de confirmación "Efectuar Compra"**: cancelar mantiene la cesta intacta; confirmar invoca checkout y limpia la cesta.
 - `WT-WEB-08`: **Botón Ticket Premium Locked**: muestra icono de candado y abre aviso Premium al pulsar.
+- `WT-WEB-09`: **Banner PWA Primera Visita (`PwaInstallBanner`)**: se muestra cuando `pwaInstallPromptVisibleProvider` está activo y se oculta al pulsar cerrar.
 
 ---
 

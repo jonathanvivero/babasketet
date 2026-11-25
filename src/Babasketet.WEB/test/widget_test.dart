@@ -1,9 +1,11 @@
 import 'package:babasketet_web/core/config/app_config.dart';
 import 'package:babasketet_web/core/widgets/long_press_and_dot.dart';
 import 'package:babasketet_web/features/houses/onboarding_page.dart';
+import 'package:babasketet_web/features/pwa/pwa_install_banner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   test('AppConfig formats and parses Euro amounts with es-ES comma', () {
@@ -83,5 +85,28 @@ void main() {
     expect(find.text('Babasketet'), findsOneWidget);
     expect(find.text('Crear Casa'), findsOneWidget);
     expect(find.text('Unirme a la Casa'), findsOneWidget);
+  });
+
+  testWidgets('PwaInstallBanner renders when enabled and hides on dismiss',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          pwaInstallPromptVisibleProvider.overrideWith((ref) => true),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: PwaInstallBanner(),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Instalar'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('Instalar'), findsNothing);
   });
 }
