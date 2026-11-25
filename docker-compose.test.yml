@@ -1,0 +1,25 @@
+services:
+  playwright:
+    build:
+      context: ./tests/e2e-playwright
+      dockerfile: Dockerfile
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+      william-ui:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://localhost:8081
+      API_URL: http://localhost:8080
+      WILLIAM_UI_URL: http://localhost:3000
+      ZITADEL_URL: http://localhost:8085
+      MAILPIT_URL: http://localhost:8025
+    networks:
+      - babasketet-net
+      - iam-net
+    volumes:
+      - ./tests/e2e-playwright/test-results:/app/test-results
