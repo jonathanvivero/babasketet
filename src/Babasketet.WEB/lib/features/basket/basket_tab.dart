@@ -88,6 +88,7 @@ class _BasketTabState extends ConsumerState<BasketTab> {
     final house = state.activeHouse;
     if (house == null) return;
 
+    final nameCtrl = TextEditingController(text: item.name);
     final qtyCtrl = TextEditingController(
       text: item.quantity == item.quantity.roundToDouble()
           ? item.quantity.toInt().toString()
@@ -100,12 +101,25 @@ class _BasketTabState extends ConsumerState<BasketTab> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          title: Text(item.name),
+          title: const Text('Editar elemento'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Semantics(
+                  container: true,
+                  identifier: 'basket_edit_name_input',
+                  textField: true,
+                  child: TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre del producto',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: qtyCtrl,
                   keyboardType:
@@ -188,24 +202,35 @@ class _BasketTabState extends ConsumerState<BasketTab> {
               onPressed: () => Navigator.of(ctx).pop(),
               child: const Text('Cancelar'),
             ),
-            FilledButton(
-              onPressed: () async {
-                final parsedQty = AppConfig.parseEuroInput(qtyCtrl.text);
-                if (parsedQty == null || parsedQty <= 0) return;
-                await ref.read(apiClientProvider).updateBasketItem(
-                      house.id,
-                      item.id,
-                      quantity: parsedQty,
-                      format: selectedFormat,
-                      productTypeId: selectedTypeId,
-                      clearProductType: selectedTypeId == null,
-                    );
-                await ref
-                    .read(houseControllerProvider.notifier)
-                    .refreshActiveHouse();
-                if (ctx.mounted) Navigator.of(ctx).pop();
-              },
-              child: const Text('Aplicar'),
+            Semantics(
+              container: true,
+              identifier: 'basket_popup_save_btn',
+              button: true,
+              child: FilledButton(
+                onPressed: () async {
+                  final trimmedName = nameCtrl.text.trim();
+                  final parsedQty = AppConfig.parseEuroInput(qtyCtrl.text);
+                  if (trimmedName.isEmpty ||
+                      parsedQty == null ||
+                      parsedQty <= 0) {
+                    return;
+                  }
+                  await ref.read(apiClientProvider).updateBasketItem(
+                        house.id,
+                        item.id,
+                        name: trimmedName,
+                        quantity: parsedQty,
+                        format: selectedFormat,
+                        productTypeId: selectedTypeId,
+                        clearProductType: selectedTypeId == null,
+                      );
+                  await ref
+                      .read(houseControllerProvider.notifier)
+                      .refreshActiveHouse();
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                },
+                child: const Text('Aplicar'),
+              ),
             ),
           ],
         ),
@@ -297,7 +322,7 @@ class _BasketTabState extends ConsumerState<BasketTab> {
                             .read(houseControllerProvider.notifier)
                             .refreshActiveHouse();
                       },
-                      child: TwoSecondLongPress(
+                      child: ItemLongPressDetector(
                         onTriggered: () => _openLongPressPopup(item),
                         child: Semantics(
                           container: true,

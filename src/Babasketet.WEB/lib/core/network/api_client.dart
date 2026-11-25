@@ -270,6 +270,7 @@ class BabasketetApiClient {
   Future<void> updateBasketItem(
     String houseId,
     String itemId, {
+    String? name,
     double? quantity,
     String? productTypeId,
     bool clearProductType = false,
@@ -279,6 +280,7 @@ class BabasketetApiClient {
         await _dio.patch<void>(
           '/api/v1/houses/$houseId/basket/items/$itemId',
           data: {
+            'name': name,
             'quantity': quantity,
             'productTypeId': productTypeId,
             'clearProductType': clearProductType,

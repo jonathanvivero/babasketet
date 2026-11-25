@@ -59,7 +59,7 @@ La pirámide de testing de **Babasketet** garantiza que cada regla de dominio, r
 
 ### Catálogo Clave
 - `WT-WEB-01`: **Disco Rotatorio (`RotaryAuthDial`)**: girar el ángulo `+40°` / `-40°` actualiza el método seleccionado en el "norte" (12 en punto) y dispara el callback correcto para los **9 métodos** (incluyendo Passkey).
-- `WT-WEB-02`: **Long-Press > 2 segundos**: mantener pulsado `1.5s` **no** abre el popup; mantener pulsado `2.1s` **sí** abre el popup de tipo (en `Lista`) o de acciones (en `Cesta`).
+- `WT-WEB-02`: **Long-Press 800 ms**: mantener pulsado `400ms` **no** abre el popup; mantener pulsado `850ms` **sí** abre el popup de edición (nombre y tipo en `Lista`; nombre, unidades, tipo, formato y eliminar en `Cesta`).
 - `WT-WEB-03`: **Gesto vertical en unidades (`Cesta`)**: drag vertical hacia arriba incrementa `1 → 2 → 3`; drag hacia abajo decrementa `3 → 2 → 1` y se detiene en el mínimo.
 - `WT-WEB-04`: **Renderizado de círculo de Tipo**: item sin tipo renderiza texto negro sin círculo; item con tipo `Lácteos` renderiza círculo blanco (`#FFFFFF`) con borde fucsia (`#FF00FF`).
 - `WT-WEB-05`: **Autocompletado `[+]`**: escribir `"le"` filtra y muestra sugerencias del historial previo de la casa.

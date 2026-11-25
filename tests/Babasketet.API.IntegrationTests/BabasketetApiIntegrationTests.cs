@@ -254,6 +254,43 @@ public sealed class BabasketetApiIntegrationTests(BabasketetApiFixture fixture)
             tcs3.Task.WaitAsync(TimeSpan.FromSeconds(5)));
     }
 
+    [Fact]
+    public async Task IT_API_12_RenameItem_InListAndBasket_ShouldUpdateAndAvoidDuplicateProductCrash()
+    {
+        using var anon = fixture.CreateClientWithToken();
+        var created = await (await anon.PostAsJsonAsync("/api/v1/houses", new CreateHouseRequest("Casa Renombrar")))
+            .Content.ReadFromJsonAsync<CreateHouseResponse>();
+        var houseId = created!.House.Id;
+        using var client = fixture.CreateClientWithToken(created.DeviceToken);
+
+        // Creamos previamente un producto "Leche Desnatada" para probar colisión de nombre normalizado
+        var existingItem = await (await client.PostAsJsonAsync($"/api/v1/houses/{houseId}/list/items",
+            new AddListItemRequest(null, "Leche Desnatada", null, null))).Content.ReadFromJsonAsync<ShoppingListItemDto>();
+        (await client.DeleteAsync($"/api/v1/houses/{houseId}/list/items/{existingItem!.Id}")).EnsureSuccessStatusCode();
+
+        var item = await (await client.PostAsJsonAsync($"/api/v1/houses/{houseId}/list/items",
+            new AddListItemRequest(null, "Leche", null, null))).Content.ReadFromJsonAsync<ShoppingListItemDto>();
+
+        // Renombrar en Lista a un nombre nuevo
+        var renamedInList = await (await client.PatchAsJsonAsync(
+            $"/api/v1/houses/{houseId}/list/items/{item!.Id}",
+            new UpdateListItemRequest("Leche Entera", null, false, null))).Content.ReadFromJsonAsync<ShoppingListItemDto>();
+        renamedInList!.Name.Should().Be("Leche Entera");
+
+        // Mover a Cesta y renombrar al producto ya existente ("Leche Desnatada") sin violar unique constraint
+        var basketItem = await (await client.PostAsync(
+            $"/api/v1/houses/{houseId}/list/items/{item.Id}/move-to-basket", null))
+            .Content.ReadFromJsonAsync<BasketItemDto>();
+
+        var renamedInBasket = await (await client.PatchAsJsonAsync(
+            $"/api/v1/houses/{houseId}/basket/items/{basketItem!.Id}",
+            new UpdateBasketItemRequest(null, null, false, null, "Leche Desnatada"))).Content.ReadFromJsonAsync<BasketItemDto>();
+        renamedInBasket!.Name.Should().Be("Leche Desnatada");
+
+        var basket = await client.GetFromJsonAsync<BasketResponse>($"/api/v1/houses/{houseId}/basket");
+        basket!.Items.Should().ContainSingle(i => i.Name == "Leche Desnatada");
+    }
+
     private HubConnection CreateHubConnection(string token)
     {
         var handler = fixture.Factory.Server.CreateHandler();

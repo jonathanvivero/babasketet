@@ -93,9 +93,9 @@ lib/
   - **Reordenación**: Drag & drop mediante handle o gesto de arrastre, persistiendo `PUT /list/reorder`.
   - **Swipe derecha (`Dismissible`)**: mueve el item a `Cesta` (feedback visual verde / icono carrito).
   - **Swipe izquierda (`Dismissible`)**: elimina el item de `Lista` (feedback visual rojo / papelera).
-  - **Long-press (> 2 segundos)**:
-    - Usar detector dedicado con `Timer(Duration(seconds: 2))` (el `onLongPress` nativo de Flutter dispara a los ~500 ms; debemos exigir retención continua de **2000 ms** con indicador circular sutil de progreso para cumplir la spec exacta).
-    - Abre popup con desplegable de `Tipo` (círculo color+borde + nombre) y acceso a crear un tipo personalizado (nombre, color fondo, color borde).
+  - **Long-press (800 ms)**:
+    - Usar detector dedicado con `Timer(Duration(milliseconds: 800))` (reducido en más de 1 segundo respecto a los 2000 ms iniciales, manteniendo indicador circular sutil de progreso para distinguir pulsación de tap/swipe).
+    - Abre popup donde el usuario puede **editar el nombre del item**, elegir `Tipo` (círculo color+borde + nombre) y acceder a crear un tipo personalizado (nombre, color fondo, color borde).
 
 ### 3.5 Pestaña `Cesta`
 - Muestra cada elemento movido desde `Lista`:
@@ -108,11 +108,12 @@ lib/
     - Al tocar el área de precio, abre input enfocado con `TextInputType.numberWithOptions(decimal: true)` (teclado numérico del teléfono) precargado con el último precio en memoria (o `0,00`).
     - Al confirmar, envía `PUT /basket/items/{id}/price` (actualizando histórico SCD-2 para el supermercado actual).
   - **Swipe izquierda**: devuelve el producto a la pestaña `Lista`.
-  - **Long-press (> 2 segundos)**: abre popup con:
-    1. **Eliminar** (desaparece definitivamente, no vuelve a `Lista`).
-    2. **Cambiar ud.** (input numérico directo).
-    3. **Cambiar tipo** (desplegable de tipos con círculo color+borde).
-    4. **Cambiar formato** (`Ud`, `Docena`, `Kg`, `g`, `L`, `Cl`, `Pack-2`, `Pack-3`, `Pack-4`, `Pack-6`, `Pack-8`).
+  - **Long-press (800 ms)**: abre popup con:
+    1. **Cambiar nombre** (campo de texto pre-rellenado).
+    2. **Eliminar** (desaparece definitivamente, no vuelve a `Lista`).
+    3. **Cambiar ud.** (input numérico directo).
+    4. **Cambiar tipo** (desplegable de tipos con círculo color+borde).
+    5. **Cambiar formato** (`Ud`, `Docena`, `Kg`, `g`, `L`, `Cl`, `Pack-2`, `Pack-3`, `Pack-4`, `Pack-6`, `Pack-8`).
 - **Pie fijo de la Cesta**:
   - **Total** acumulado en tiempo real (`SUM(precio * cantidad)`).
   - Botón **"Efectuar Compra"** → diálogo de confirmación → guarda en `Compras` y vacía la `Cesta`.

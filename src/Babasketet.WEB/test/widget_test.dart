@@ -15,14 +15,14 @@ void main() {
   });
 
   testWidgets(
-      'TwoSecondLongPress does not trigger before 2s and triggers after 2s',
+      'ItemLongPressDetector does not trigger before 800ms and triggers after 800ms',
       (tester) async {
     var triggered = 0;
 
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: TwoSecondLongPress(
+          body: ItemLongPressDetector(
             onTriggered: () => triggered++,
             child: const SizedBox(
               width: 200,
@@ -36,10 +36,10 @@ void main() {
 
     final gesture =
         await tester.startGesture(tester.getCenter(find.text('Leche')));
-    await tester.pump(const Duration(milliseconds: 1500));
+    await tester.pump(const Duration(milliseconds: 400));
     expect(triggered, 0);
 
-    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(milliseconds: 450));
     expect(triggered, 1);
 
     await gesture.up();

@@ -61,14 +61,14 @@ export async function scrollUntilVisible(page: Page, locator: Locator): Promise<
 	await expect(locator).toBeVisible();
 }
 
-export async function longPress2s(page: Page, locator: Locator): Promise<void> {
+export async function longPress800ms(page: Page, locator: Locator): Promise<void> {
 	const box = await locator.boundingBox();
 	expect(box).not.toBeNull();
 	const x = box!.x + box!.width / 2;
 	const y = box!.y + box!.height / 2;
 	await page.mouse.move(x, y);
 	await page.mouse.down();
-	await page.waitForTimeout(2150);
+	await page.waitForTimeout(950);
 	await page.mouse.up();
 }
 
