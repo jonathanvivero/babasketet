@@ -8,6 +8,7 @@ public sealed class BabasketetDbContext(DbContextOptions<BabasketetDbContext> op
     public DbSet<AppUser> AppUsers => Set<AppUser>();
     public DbSet<SystemEmailConfig> SystemEmailConfigs => Set<SystemEmailConfig>();
     public DbSet<AdminNotification> AdminNotifications => Set<AdminNotification>();
+    public DbSet<PlatformInvitation> PlatformInvitations => Set<PlatformInvitation>();
     public DbSet<House> Houses => Set<House>();
     public DbSet<HouseMember> HouseMembers => Set<HouseMember>();
     public DbSet<HouseInvitation> HouseInvitations => Set<HouseInvitation>();
@@ -277,6 +278,25 @@ public sealed class BabasketetDbContext(DbContextOptions<BabasketetDbContext> op
                 .WithMany(p => p.Items)
                 .HasForeignKey(x => x.PurchaseId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PlatformInvitation>(e =>
+        {
+            e.ToTable("platform_invitations");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.Code).HasColumnName("code").HasMaxLength(40).IsRequired();
+            e.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            e.Property(x => x.ExpiresAt).HasColumnName("expires_at");
+            e.Property(x => x.CancelledAt).HasColumnName("cancelled_at");
+            e.Property(x => x.RedeemedAt).HasColumnName("redeemed_at");
+            e.Property(x => x.RedeemedByUserId).HasColumnName("redeemed_by_user_id");
+            e.HasIndex(x => x.Code).IsUnique();
+            e.HasIndex(x => x.CreatedAt);
+            e.HasOne(x => x.RedeemedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.RedeemedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

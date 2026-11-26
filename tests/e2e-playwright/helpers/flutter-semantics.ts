@@ -50,11 +50,21 @@ export async function expectSemanticContains(
 	}).toPass({ timeout: 15_000 });
 }
 
-export async function scrollUntilVisible(page: Page, locator: Locator): Promise<void> {
-	const box = page.viewportSize() ?? { width: 412, height: 915 };
-	await page.mouse.move(box.width / 2, box.height * 0.7);
-	for (let i = 0; i < 12; i++) {
-		if (await locator.isVisible().catch(() => false)) return;
+export async function scrollUntilVisible(
+	page: Page,
+	locator: Locator,
+	xFraction = 0.5
+): Promise<void> {
+	const vp = page.viewportSize() ?? { width: 412, height: 915 };
+	await page.mouse.move(vp.width * xFraction, vp.height * 0.7);
+	for (let i = 0; i < 15; i++) {
+		const visible = await locator.isVisible().catch(() => false);
+		if (visible) {
+			const box = await locator.boundingBox().catch(() => null);
+			if (box && box.y >= 0 && box.y + box.height <= vp.height - 16) {
+				return;
+			}
+		}
 		await page.mouse.wheel(0, 320);
 		await page.waitForTimeout(150);
 	}

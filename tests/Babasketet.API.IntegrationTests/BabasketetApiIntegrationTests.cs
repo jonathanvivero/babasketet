@@ -308,12 +308,14 @@ public sealed class BabasketetApiIntegrationTests(BabasketetApiFixture fixture)
         appliedAfterDown.Should().NotContain("20261125000002_AddAppUsersAndOwnershipRules");
         appliedAfterDown.Should().NotContain("20261126000001_AddSystemEmailConfig");
         appliedAfterDown.Should().NotContain("20261126000002_AddAdminNotifications");
+        appliedAfterDown.Should().NotContain("20261126000003_AddPlatformInvitations");
 
-        await migrator.MigrateAsync("20261126000002_AddAdminNotifications");
+        await migrator.MigrateAsync();
         var appliedAfterUp = (await db.Database.GetAppliedMigrationsAsync()).ToList();
         appliedAfterUp.Should().Contain("20261125000002_AddAppUsersAndOwnershipRules");
         appliedAfterUp.Should().Contain("20261126000001_AddSystemEmailConfig");
         appliedAfterUp.Should().Contain("20261126000002_AddAdminNotifications");
+        appliedAfterUp.Should().Contain("20261126000003_AddPlatformInvitations");
 
         await DatabaseInitializer.SeedCatalogsAsync(db);
     }
@@ -591,6 +593,97 @@ public sealed class BabasketetApiIntegrationTests(BabasketetApiFixture fixture)
         backToNew!.Status.Should().Be("New");
         backToNew.ReadAt.Should().BeNull();
         backToNew.ArchivedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task IT_API_18_PlatformInvitations_ShouldCreateFilterCancelRenewReactivateAndSendEmails()
+    {
+        var userJwt = fixture.IssueZitadelJwt("normal-user-inv", roles: ["User"]);
+        using var userClient = fixture.CreateClientWithToken(userJwt);
+        (await userClient.GetAsync("/api/v1/admin/invitations")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // Registrar usuario que aparecerá luego vinculado a una invitación canjeada
+        await userClient.GetAsync("/api/v1/me");
+
+        var adminJwt = fixture.IssueZitadelJwt("admin-inv", roles: ["User", "Admin"], email: "admin.inv@babasketet.test");
+        using var adminClient = fixture.CreateClientWithToken(adminJwt);
+
+        (await adminClient.PutAsJsonAsync("/api/v1/admin/settings/email",
+            new SaveEmailConfigRequest("smtp.test.local", 1025, null, null, true, "None", "noreply@babasketet.test", "Babasketet", true)))
+            .EnsureSuccessStatusCode();
+
+        // 1. Crear invitación con expiración por defecto (+7 días)
+        var createResp = await adminClient.PostAsJsonAsync("/api/v1/admin/invitations", new CreatePlatformInvitationRequest());
+        createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+        var inv1 = await createResp.Content.ReadFromJsonAsync<PlatformInvitationDto>();
+        inv1!.Code.Should().StartWith("BBK-");
+        inv1.Status.Should().Be("Active");
+        inv1.IsIndefinite.Should().BeFalse();
+        (inv1.ExpiresAt!.Value - inv1.CreatedAt).Should().BeCloseTo(TimeSpan.FromDays(7), TimeSpan.FromSeconds(2));
+
+        // 2. Enviar por email a múltiples direcciones
+        var sendResp = await adminClient.PostAsJsonAsync($"/api/v1/admin/invitations/{inv1.Id}/send-email",
+            new SendPlatformInvitationEmailsRequest(["uno@babasketet.test", "dos@babasketet.test"], "https://app.babasketet.local"));
+        sendResp.EnsureSuccessStatusCode();
+        var sendResult = await sendResp.Content.ReadFromJsonAsync<SendPlatformInvitationEmailsResultDto>();
+        sendResult!.SentCount.Should().Be(2);
+        fixture.FakeSmtp.SentMessages.Should().Contain(m => m.ToEmail == "uno@babasketet.test" && m.TextBody!.Contains($"/invitation-redeem/{inv1.Code}"));
+        fixture.FakeSmtp.SentMessages.Should().Contain(m => m.ToEmail == "dos@babasketet.test" && m.TextBody!.Contains(inv1.Code));
+
+        // 3. Renovar activa (+7 días y luego indefinida)
+        var renewResp = await adminClient.PostAsJsonAsync($"/api/v1/admin/invitations/{inv1.Id}/renew", new RenewPlatformInvitationRequest(7, false));
+        renewResp.EnsureSuccessStatusCode();
+        var renewed = await renewResp.Content.ReadFromJsonAsync<PlatformInvitationDto>();
+        (renewed!.ExpiresAt!.Value - inv1.ExpiresAt!.Value).Should().BeCloseTo(TimeSpan.FromDays(7), TimeSpan.FromSeconds(2));
+
+        var indefResp = await adminClient.PostAsJsonAsync($"/api/v1/admin/invitations/{inv1.Id}/renew", new RenewPlatformInvitationRequest(0, true));
+        indefResp.EnsureSuccessStatusCode();
+        (await indefResp.Content.ReadFromJsonAsync<PlatformInvitationDto>())!.IsIndefinite.Should().BeTrue();
+
+        // 4. Crear 2ª invitación, dejarla expirar -> NO se puede renovar, SI reactivar (+15 días desde reactivación)
+        var inv2 = await (await adminClient.PostAsJsonAsync("/api/v1/admin/invitations",
+            new CreatePlatformInvitationRequest(fixture.TimeProvider.GetUtcNow().AddHours(2), false)))
+            .Content.ReadFromJsonAsync<PlatformInvitationDto>();
+        fixture.TimeProvider.Advance(TimeSpan.FromHours(3));
+
+        var expiredList = await adminClient.GetFromJsonAsync<List<PlatformInvitationDto>>("/api/v1/admin/invitations?dateRange=24h&statuses=Expired");
+        expiredList.Should().ContainSingle(x => x.Id == inv2!.Id && x.Status == "Expired");
+
+        var failRenew = await adminClient.PostAsJsonAsync($"/api/v1/admin/invitations/{inv2!.Id}/renew", new RenewPlatformInvitationRequest(7, false));
+        failRenew.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var reactivated = await (await adminClient.PostAsJsonAsync($"/api/v1/admin/invitations/{inv2.Id}/reactivate", new ReactivatePlatformInvitationRequest(15)))
+            .Content.ReadFromJsonAsync<PlatformInvitationDto>();
+        reactivated!.Status.Should().Be("Active");
+        reactivated.ExpiresAt!.Value.Should().BeCloseTo(fixture.TimeProvider.GetUtcNow().AddDays(15), TimeSpan.FromSeconds(2));
+
+        // 5. Cancelar inv2 y verificar filtro Cancelled + reactivación posterior
+        var cancelled = await (await adminClient.PostAsync($"/api/v1/admin/invitations/{inv2.Id}/cancel", null))
+            .Content.ReadFromJsonAsync<PlatformInvitationDto>();
+        cancelled!.Status.Should().Be("Cancelled");
+        var cancelledList = await adminClient.GetFromJsonAsync<List<PlatformInvitationDto>>("/api/v1/admin/invitations?dateRange=all&statuses=Cancelled");
+        cancelledList.Should().ContainSingle(x => x.Id == inv2.Id);
+
+        // 6. Verificar relación RedeemedByUser en BD y filtro de fechas/canjeadas
+        using (var scope = fixture.Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BabasketetDbContext>();
+            var redeemer = await db.AppUsers.SingleAsync(u => u.ZitadelUserId == "normal-user-inv");
+            var row = await db.PlatformInvitations.SingleAsync(x => x.Id == inv1.Id);
+            row.RedeemedByUserId = redeemer.Id;
+            row.RedeemedAt = fixture.TimeProvider.GetUtcNow();
+            await db.SaveChangesAsync();
+        }
+
+        var redeemedList = await adminClient.GetFromJsonAsync<List<PlatformInvitationDto>>("/api/v1/admin/invitations?dateRange=week&statuses=Redeemed");
+        redeemedList.Should().ContainSingle(x => x.Id == inv1.Id && x.RedeemedBy != null && x.RedeemedBy.UserId != Guid.Empty);
+
+        // Con filtro 24h vs month tras avanzar 2 días: inv1 creada hace >24h no entra en 24h pero sí en month
+        fixture.TimeProvider.Advance(TimeSpan.FromDays(2));
+        var last24h = await adminClient.GetFromJsonAsync<List<PlatformInvitationDto>>("/api/v1/admin/invitations?dateRange=24h&statuses=All");
+        last24h!.Should().NotContain(x => x.Id == inv1.Id);
+        var lastMonth = await adminClient.GetFromJsonAsync<List<PlatformInvitationDto>>("/api/v1/admin/invitations?dateRange=month&statuses=All");
+        lastMonth.Should().Contain(x => x.Id == inv1.Id);
     }
 
     private HubConnection CreateHubConnection(string token)

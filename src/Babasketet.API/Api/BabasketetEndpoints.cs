@@ -202,6 +202,55 @@ public static class BabasketetEndpoints
                 CancellationToken ct) =>
             Results.Ok(await svc.UpdateStatusForAdminAsync(notificationId, req, ExtractBearer(http), ct)));
 
+        admin.MapGet("/invitations", async (
+                string? dateRange,
+                string? statuses,
+                HttpContext http,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.GetListForAdminAsync(dateRange, statuses, ExtractBearer(http), ct)));
+
+        admin.MapPost("/invitations", async (
+                CreatePlatformInvitationRequest req,
+                HttpContext http,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+        {
+            var created = await svc.CreateForAdminAsync(req, ExtractBearer(http), ct);
+            return Results.Created($"/api/v1/admin/invitations/{created.Id}", created);
+        });
+
+        admin.MapPost("/invitations/{invitationId:guid}/cancel", async (
+                Guid invitationId,
+                HttpContext http,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.CancelAsync(invitationId, ExtractBearer(http), ct)));
+
+        admin.MapPost("/invitations/{invitationId:guid}/renew", async (
+                Guid invitationId,
+                RenewPlatformInvitationRequest req,
+                HttpContext http,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.RenewAsync(invitationId, req, ExtractBearer(http), ct)));
+
+        admin.MapPost("/invitations/{invitationId:guid}/reactivate", async (
+                Guid invitationId,
+                ReactivatePlatformInvitationRequest req,
+                HttpContext http,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.ReactivateAsync(invitationId, req, ExtractBearer(http), ct)));
+
+        admin.MapPost("/invitations/{invitationId:guid}/send-email", async (
+                Guid invitationId,
+                SendPlatformInvitationEmailsRequest req,
+                HttpContext http,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.SendByEmailAsync(invitationId, req, ExtractBearer(http), ct)));
+
         app.MapHub<HouseHub>("/hubs/house");
 
         return app;

@@ -22,6 +22,7 @@ builder.Services.AddScoped<IHouseNotifier, SignalRHouseNotifier>();
 builder.Services.AddScoped<ISmtpDeliveryClient, MailKitSmtpDeliveryClient>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<AdminNotificationService>();
+builder.Services.AddScoped<PlatformInvitationService>();
 builder.Services.AddScoped<UserDirectoryService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<HouseService>();

@@ -104,6 +104,9 @@ tests/e2e-playwright/
 ### `11-admin-notifications.spec.ts` — Notificaciones Admin
 - **E2E-32**: Verifica que las notificaciones envían correo real a admins, se muestran en el panel de `/admin-bo`, se abren en popup marcándose como `Leídas`, navegan `Siguiente`/`Anterior` y pasan a `Archivadas`.
 
+### `12-admin-invitations.spec.ts` — Sistema de Invitaciones Admin
+- **E2E-33**: Admin genera invitación (+7d por defecto), copia URL / WhatsApp y envía por email (verificado en Mailpit), renueva `+7d`, cancela, filtra y reactiva `7d`.
+
 ---
 
 ## 4. Ejecución en Docker / CI

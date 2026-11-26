@@ -141,6 +141,105 @@ class _FakeAdminApiClient extends BabasketetApiClient {
     _notifications[idx] = updated;
     return updated;
   }
+
+  final List<PlatformInvitationDto> _invitations = [];
+
+  @override
+  Future<List<PlatformInvitationDto>> adminGetPlatformInvitations({
+    String dateRange = 'all',
+    String statuses = 'Active',
+  }) async {
+    final allowed = statuses == 'All'
+        ? {'Active', 'Redeemed', 'Cancelled', 'Expired'}
+        : statuses.split(',').toSet();
+    return _invitations.where((i) => allowed.contains(i.status)).toList();
+  }
+
+  @override
+  Future<PlatformInvitationDto> adminCreatePlatformInvitation({
+    DateTime? expiresAt,
+    bool isIndefinite = false,
+  }) async {
+    final now = DateTime(2026, 11, 26, 12, 0);
+    final inv = PlatformInvitationDto(
+      id: 'inv-${_invitations.length + 1}',
+      code: 'BBK-TEST000${_invitations.length + 1}',
+      status: 'Active',
+      createdAt: now,
+      expiresAt: isIndefinite ? null : (expiresAt ?? now.add(const Duration(days: 7))),
+      isIndefinite: isIndefinite,
+    );
+    _invitations.insert(0, inv);
+    return inv;
+  }
+
+  @override
+  Future<PlatformInvitationDto> adminCancelPlatformInvitation(String id) async {
+    final idx = _invitations.indexWhere((i) => i.id == id);
+    final old = _invitations[idx];
+    final updated = PlatformInvitationDto(
+      id: old.id,
+      code: old.code,
+      status: 'Cancelled',
+      createdAt: old.createdAt,
+      expiresAt: old.expiresAt,
+      isIndefinite: old.isIndefinite,
+      cancelledAt: DateTime(2026, 11, 26, 12, 5),
+    );
+    _invitations[idx] = updated;
+    return updated;
+  }
+
+  @override
+  Future<PlatformInvitationDto> adminRenewPlatformInvitation(
+    String id, {
+    int days = 7,
+    bool isIndefinite = false,
+  }) async {
+    final idx = _invitations.indexWhere((i) => i.id == id);
+    final old = _invitations[idx];
+    final updated = PlatformInvitationDto(
+      id: old.id,
+      code: old.code,
+      status: 'Active',
+      createdAt: old.createdAt,
+      expiresAt: isIndefinite ? null : (old.expiresAt ?? DateTime(2026, 11, 26)).add(Duration(days: days)),
+      isIndefinite: isIndefinite,
+    );
+    _invitations[idx] = updated;
+    return updated;
+  }
+
+  @override
+  Future<PlatformInvitationDto> adminReactivatePlatformInvitation(
+    String id, {
+    int days = 7,
+  }) async {
+    final idx = _invitations.indexWhere((i) => i.id == id);
+    final old = _invitations[idx];
+    final updated = PlatformInvitationDto(
+      id: old.id,
+      code: old.code,
+      status: 'Active',
+      createdAt: old.createdAt,
+      expiresAt: DateTime(2026, 11, 26).add(Duration(days: days)),
+      isIndefinite: false,
+    );
+    _invitations[idx] = updated;
+    return updated;
+  }
+
+  @override
+  Future<SendPlatformInvitationEmailsResultDto> adminSendPlatformInvitationEmails(
+    String id, {
+    required List<String> emails,
+    String? baseUrl,
+  }) async =>
+      SendPlatformInvitationEmailsResultDto(
+        sentCount: emails.length,
+        recipients: emails,
+        message: 'Invitación enviada a ${emails.length} destinatario(s).',
+      );
 }
 
 void main() {
@@ -298,6 +397,17 @@ void main() {
     expect(find.text('Usuarios (0)'), findsOneWidget);
     expect(find.text('Ítems (0)'), findsOneWidget);
     expect(find.text('Configuraciones'), findsOneWidget);
+    expect(find.text('Invitaciones'), findsOneWidget);
+
+    await tester.tap(find.text('Invitaciones'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sistema de Invitaciones'), findsOneWidget);
+    await tester.tap(find.text('Generar invitación'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('BBK-TEST0001'), findsWidgets);
+    expect(find.text('Copiar URL'), findsOneWidget);
+    expect(find.text('Enviar por WhatsApp'), findsOneWidget);
+    expect(find.text('Enviar por email'), findsOneWidget);
 
     await tester.tap(find.text('Configuraciones'));
     await tester.pumpAndSettle();

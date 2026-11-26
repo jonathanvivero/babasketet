@@ -138,6 +138,7 @@ lib/
   - **Usuarios**: listado y editor completo (Estado `Activo|Bloqueado`, rol `Guest|User|Owner|Admin`, indicador autenticado/anónimo, propiedades clave-valor en BD y casas con asignación de `Owner`).
   - **Ítems**: listado alfabético con filtro de texto y agrupación multi-casa (`"N casas"` cuando mismo texto case-insensitive y mismo tipo coinciden en más de una casa).
   - **Configuraciones → Correo Electrónico Saliente**: configuración SMTP (servidor, puerto, seguridad `StartTls`/`SslTls`/`None`/`Auto`, cuenta, contraseña protegida, remitente) con persistencia en BD y botón de prueba de envío.
+  - **Invitaciones**: alta de invitaciones de plataforma con código único y caducidad por defecto +7 días editable/indefinida, botones para copiar URL (`/invitation-redeem/{code}`), compartir por WhatsApp y envío multi-destinatario (TextArea de emails), listado con filtros de fecha y estado, relación al usuario canjeador, cancelar, renovar (`+1/7/15/30d` / indefinida si no expiró) y reactivar (`1/7/15/30d`).
   - **Notificaciones (tercio derecho del dashboard principal)**: listado paginado de 10 en 10, filtro por defecto `Nuevas` (`Todas`, `Nuevas`, `Leídas`, `Archivadas`), acciones rápidas de estado y apertura en popup con marcado automático como `Leída` y navegación `Anterior` / `Siguiente`.
 
 ---

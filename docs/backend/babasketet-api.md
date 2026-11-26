@@ -187,6 +187,12 @@ WHERE product_id = @productId
 | `GET` | `/api/v1/admin/notifications` | Listado paginado (10 en 10) de notificaciones con filtro multi-estado (`New`, `Read`, `Archived`, `All`). |
 | `POST` | `/api/v1/admin/notifications` | Crea una notificación para administradores y notifica por correo electrónico a todos los admins activos. |
 | `PATCH` | `/api/v1/admin/notifications/{id}/status` | Cambia estado (`New`, `Read`, `Archived`) actualizando `read_at` y `archived_at`. |
+| `GET` | `/api/v1/admin/invitations` | Lista invitaciones de plataforma filtrables por rango de fecha (`all`, `year`, `6months`, `3months`, `month`, `week`, `24h`) y estado (`Active` por defecto, `Redeemed`, `Cancelled`, `Expired`, `All`). |
+| `POST` | `/api/v1/admin/invitations` | Genera una invitación con código único y expiración por defecto a 7 días (modificable o indefinida). |
+| `POST` | `/api/v1/admin/invitations/{id}/cancel` | Cancela una invitación activa dejándola no operativa. |
+| `POST` | `/api/v1/admin/invitations/{id}/renew` | Renueva una invitación no caducada sumando `1/7/15/30` días o haciéndola indefinida. |
+| `POST` | `/api/v1/admin/invitations/{id}/reactivate` | Reactiva una invitación caducada o cancelada por `1/7/15/30` días desde el momento actual. |
+| `POST` | `/api/v1/admin/invitations/{id}/send-email` | Envía por SMTP la invitación con enlace `/invitation-redeem/{code}` a la lista de emails indicada. |
 
 ---
 

@@ -54,6 +54,7 @@ La pirámide de testing de **Babasketet** garantiza que cada regla de dominio, r
 | `IT-API-15` | **Endpoints `/api/v1/admin/*` y Bloqueo** | Valida listado/detalle de casas, edición y bloqueo inmediato de usuarios (`403 USER_BLOCKED`), y listado alfabético de ítems agrupado (`"2 casas"`). |
 | `IT-API-16` | **Configuración SMTP y Email de Prueba** | Valida persistencia en BD de configuración SMTP, conservación/cifrado de contraseña y envío de prueba vía `ISmtpDeliveryClient`. |
 | `IT-API-17` | **Notificaciones Admin y Envío Multi-Admin** | Valida notificación por email a todos los admins activos, paginación de 10 en 10, filtros combinados y transiciones `New`/`Read`/`Archived` con fechas. |
+| `IT-API-18` | **Invitaciones de Plataforma** | Valida generación con código único, expiración +7d/indefinida, filtros de fecha y estado, relación con usuario canjeador, cancelación, renovación, reactivación y envío multi-email vía SMTP. |
 
 ---
 
