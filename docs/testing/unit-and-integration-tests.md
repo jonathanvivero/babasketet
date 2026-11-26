@@ -49,6 +49,14 @@ La pirámide de testing de **Babasketet** garantiza que cada regla de dominio, r
 | `IT-API-09` | Efectuar Compra | `POST /basket/checkout` crea `purchases` + `purchase_items` con snapshot de precios/cantidades y deja `basket_items` vacío en una sola transacción. |
 | `IT-API-10` | Compras (Manual Total + Ticket Locked) | `PATCH /purchases/{id}/total` actualiza `manual_total`; `POST /purchases/{id}/receipt` sin claim Premium responde `403 Forbidden`. |
 | `IT-API-11` | **SignalR Multi-Dispositivo** | 3 clientes `HubConnection` conectados a la misma casa; Cliente 1 añade item en Lista → Clientes 2 y 3 reciben el evento `ListUpdated` en tiempo real. |
+| `IT-API-13` | **Migraciones Reversibles EF Core** | Comprueba `!HasPendingModelChanges()` y ejecuta `Down` a baseline + `Up` a `AddAppUsersAndOwnershipRules` en PostgreSQL real. |
+| `IT-API-14` | **Gobernanza de Roles (`Guest`/`User`/`Owner`/`Admin`)** | Valida que un `Guest` nunca es `Owner`, que al registrarse/reclamar o canjear invitación en casa sin usuarios pasa a `Owner` el primero, y que un `User` recibe `403` en `/api/v1/admin/*`. |
+| `IT-API-15` | **Endpoints `/api/v1/admin/*` y Bloqueo** | Valida listado/detalle de casas, edición y bloqueo inmediato de usuarios (`403 USER_BLOCKED`), y listado alfabético de ítems agrupado (`"2 casas"`). |
+| `IT-API-16` | **Configuración SMTP y Email de Prueba** | Valida persistencia en BD de configuración SMTP, conservación/cifrado de contraseña y envío de prueba vía `ISmtpDeliveryClient`. |
+| `IT-API-17` | **Notificaciones Admin y Envío Multi-Admin** | Valida notificación por email a todos los admins activos, paginación de 10 en 10, filtros combinados y transiciones `New`/`Read`/`Archived` con fechas. |
+| `IT-API-18` | **Invitaciones de Plataforma** | Valida generación con código único, expiración +7d/indefinida, filtros de fecha y estado, relación con usuario canjeador, cancelación, renovación, reactivación y envío multi-email vía SMTP. |
+| `IT-API-19` | **Canje y Renovación de Invitaciones** | Valida check público (`Active`/`Expired`), bloqueo a anónimos al canjear, canje vinculado a usuario registrado y solicitud de renovación con notificación + email a admins. |
+| `IT-API-20` | **Inspección de Enlace `/join/:token`** | Valida `GET /api/v1/invitations/{token}` devolviendo datos de la casa sin unir aún y `410 Gone` si caducó/no existe. |
 
 ---
 
@@ -59,13 +67,15 @@ La pirámide de testing de **Babasketet** garantiza que cada regla de dominio, r
 
 ### Catálogo Clave
 - `WT-WEB-01`: **Disco Rotatorio (`RotaryAuthDial`)**: girar el ángulo `+40°` / `-40°` actualiza el método seleccionado en el "norte" (12 en punto) y dispara el callback correcto para los **9 métodos** (incluyendo Passkey).
-- `WT-WEB-02`: **Long-Press > 2 segundos**: mantener pulsado `1.5s` **no** abre el popup; mantener pulsado `2.1s` **sí** abre el popup de tipo (en `Lista`) o de acciones (en `Cesta`).
+- `WT-WEB-02`: **Long-Press 800 ms**: mantener pulsado `400ms` **no** abre el popup; mantener pulsado `850ms` **sí** abre el popup de edición (nombre y tipo en `Lista`; nombre, unidades, tipo, formato y eliminar en `Cesta`).
 - `WT-WEB-03`: **Gesto vertical en unidades (`Cesta`)**: drag vertical hacia arriba incrementa `1 → 2 → 3`; drag hacia abajo decrementa `3 → 2 → 1` y se detiene en el mínimo.
 - `WT-WEB-04`: **Renderizado de círculo de Tipo**: item sin tipo renderiza texto negro sin círculo; item con tipo `Lácteos` renderiza círculo blanco (`#FFFFFF`) con borde fucsia (`#FF00FF`).
 - `WT-WEB-05`: **Autocompletado `[+]`**: escribir `"le"` filtra y muestra sugerencias del historial previo de la casa.
 - `WT-WEB-06`: **Teclado numérico y formato decimal**: introducir `1,95` actualiza el precio y recalcula el total visible en la barra inferior de `Cesta`.
 - `WT-WEB-07`: **Modal de confirmación "Efectuar Compra"**: cancelar mantiene la cesta intacta; confirmar invoca checkout y limpia la cesta.
 - `WT-WEB-08`: **Botón Ticket Premium Locked**: muestra icono de candado y abre aviso Premium al pulsar.
+- `WT-WEB-09`: **Banner PWA Primera Visita (`PwaInstallBanner`)**: se muestra cuando `pwaInstallPromptVisibleProvider` está activo y se oculta al pulsar cerrar.
+- `WT-WEB-10`: **Guard de `/admin-bo` (`AdminBackofficePage`)**: usuarios no Admin ven `403 · Acceso denegado`; usuarios `Admin` acceden a `Casas`, `Usuarios` e `Ítems`.
 
 ---
 

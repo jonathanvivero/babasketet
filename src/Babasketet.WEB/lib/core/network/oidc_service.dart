@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_config.dart';
+import '../pwa/pwa_install.dart';
 import '../storage/local_storage.dart';
 
 class OidcService {
@@ -25,7 +26,9 @@ class OidcService {
     );
   }
 
-  Future<void> startLogin({String? redirectOrigin}) async {
+  /// Devuelve `true` si el flujo se completó en línea (modo popup dentro de PWA instalada).
+  /// Devuelve `false` si se inició redirección en la pestaña actual o se cerró el popup.
+  Future<bool> startLogin({String? redirectOrigin}) async {
     final cfg = await fetchConfig();
     if (cfg.clientId.isEmpty) {
       throw StateError('OIDC ClientId no configurado en Zitadel.');
@@ -42,13 +45,26 @@ class OidcService {
         'client_id': cfg.clientId,
         'redirect_uri': '$origin/auth/callback',
         'response_type': 'code',
-        'scope': 'openid profile email',
+        'scope': 'openid profile email urn:zitadel:iam:org:project:roles',
         'code_challenge': challenge,
         'code_challenge_method': 'S256',
       },
     );
 
+    if (PwaInstallAdapter.isRunningStandalone) {
+      final code =
+          await PwaInstallAdapter.openOidcPopupAndWaitForCode(authUri.toString());
+      if (code != null) {
+        if (code.isNotEmpty) {
+          await completeCallback(code, redirectOrigin: origin);
+          return true;
+        }
+        return false;
+      }
+    }
+
     await launchUrl(authUri, webOnlyWindowName: '_self');
+    return false;
   }
 
   Future<void> completeCallback(String code, {String? redirectOrigin}) async {

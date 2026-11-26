@@ -94,11 +94,11 @@ Gestionar ágilmente los productos pendientes de comprar con autocompletado, reo
 - **AC-F4.2 (Defaults del ítem y color)**:
   - *When* añade `"Tomates"` sin especificar tipo, formato ni precio
   - *Then* se guarda con `Formato = Ud.`, `Precio = 0,00`, `Tipo = null` y se muestra en fuente **negra** sin círculo de color.
-- **AC-F4.3 (Long-press > 2s y asignación de Tipo)**:
-  - *When* el usuario mantiene pulsado un item durante **más de 2 segundos**
-  - *Then* se abre el popup con desplegable de Tipos (círculo con color de fondo y borde + nombre, los 18 por defecto + personalizados) y opción para crear un tipo nuevo (nombre, color y borde).
-  - *When* selecciona `Fruta/Verdura`
-  - *Then* el item muestra a su izquierda el círculo verde claro sin borde.
+- **AC-F4.3 (Long-press 800 ms, edición de nombre y asignación de Tipo)**:
+  - *When* el usuario mantiene pulsado un item durante **800 ms**
+  - *Then* se abre el popup donde puede **editar el nombre del item**, elegir un Tipo en el desplegable (círculo con color de fondo y borde + nombre, los 18 por defecto + personalizados) o crear un tipo nuevo (nombre, color y borde).
+  - *When* cambia el nombre o selecciona `Fruta/Verdura`
+  - *Then* el nuevo nombre persiste y el item muestra a su izquierda el círculo verde claro sin borde.
 - **AC-F4.4 (Reordenación)**:
   - *When* el usuario arrastra un item a otra posición
   - *Then* el nuevo orden persiste en BD y se refleja en los demás dispositivos.
@@ -125,9 +125,9 @@ Simular el carrito físico en el supermercado: ajustar unidades por gesto vertic
 - **AC-F5.3 (Swipe izquierda en Cesta)**:
   - *When* el usuario desliza el producto hacia la **izquierda**
   - *Then* el producto vuelve a la pestaña `Lista`.
-- **AC-F5.4 (Long-press > 2s en Cesta)**:
-  - *When* mantiene pulsado un producto > 2 segundos
-  - *Then* aparece popup con 4 acciones: **Eliminar** (desaparece sin volver a Lista), **Cambiar ud.**, **Cambiar tipo**, **Cambiar formato** (`Ud`, `Docena`, `Kg`, `g`, `L`, `Cl`, `Pack-2`, `Pack-3`, `Pack-4`, `Pack-6`, `Pack-8`).
+- **AC-F5.4 (Long-press 800 ms en Cesta)**:
+  - *When* mantiene pulsado un producto durante **800 ms**
+  - *Then* aparece popup con 5 acciones: **Cambiar nombre**, **Eliminar** (desaparece sin volver a Lista), **Cambiar ud.**, **Cambiar tipo**, **Cambiar formato** (`Ud`, `Docena`, `Kg`, `g`, `L`, `Cl`, `Pack-2`, `Pack-3`, `Pack-4`, `Pack-6`, `Pack-8`).
 - **AC-F5.5 (Consignar precio y versionado SCD-2)**:
   - *When* toca el precio de un producto → aparece el teclado numérico del teléfono con el último precio (o `0,00`).
   - *When* guarda un precio distinto (ej. pasa de `1,05` a `1,15`) para `(Producto, Supermercado)`
@@ -168,5 +168,43 @@ Garantizar que 3 o más dispositivos conectados a la misma casa vean cambios en 
   - *Given* Dispositivo A, Dispositivo B y Dispositivo C abiertos en la misma casa
   - *When* Dispositivo A añade `"Pan"` en `Lista` y Dispositivo B lo mueve a `Cesta`
   - *Then* Dispositivo C refleja ambos cambios automáticamente (< 1 segundo en red estable) vía SignalR.
-- **AC-F7.2 (Instalabilidad PWA)**:
-  - *Then* `Babasketet.WEB` cumple los criterios de instalabilidad PWA (HTTPS, `manifest.json` válido, Service Worker registrado).
+- **AC-F7.2 (Instalabilidad PWA, icono y aviso en 1ª visita)**:
+  - *Given* un usuario visita la app web por primera vez fuera del modo `standalone`
+  - *Then* ve un aviso invitándole a instalar la PWA como app en su dispositivo (con soporte de `beforeinstallprompt` o guía iOS) que no vuelve a aparecer tras descartarlo.
+  - *Then* `Babasketet.WEB` cumple los criterios de instalabilidad PWA (`manifest.json` válido, Service Worker, favicon e iconos de la piña entrando en la cesta de baloncesto sobre fondo naranja).
+- **AC-F7.3 (Acceso a cuenta persistente en App instalada)**:
+  - *Given* el usuario abre la app instalada (`standalone`) directamente sobre una casa anónima
+  - *Then* dispone de acceso visible en la barra superior (`account_btn`) y en el menú lateral para crear cuenta o iniciar sesión en `WillIAM` mediante flujo seguro sin perder su casa local.
+
+---
+
+## F8: Panel de Administración (`/admin-bo`) y Gobernanza de Roles
+
+### Objetivo
+Proporcionar un backoffice en `/admin-bo` exclusivo del rol `Admin` junto con el modelo de roles `Guest`, `User`, `Admin` y `Owner` por casa en `Zitadel`/`WillIAM` y `Babasketet.API`.
+
+### Criterios de Aceptación
+- **AC-F8.1 (Roles y Usuario Admin Inicial)**:
+  - *Given* el proyecto `Babasketet` en Zitadel
+  - *Then* define los roles `Guest` (global, solo no registrados), `User` (global, asignado al registrarse), `Admin` (global, inicial en `jonathanvivero@gmail.com`) y `Owner` (por casa, solo `User`, inicialmente 1 por casa).
+  - *And* `jonathanvivero@gmail.com` nace con contraseña temporal `QWERTYUIOP-789456123!` y `changeRequired = true`, obligado a cambiarla en su primer acceso en `WillIAM.UI`.
+- **AC-F8.2 (Acceso restringido a `/admin-bo`)**:
+  - *Given* un usuario `Guest` o `User` sin `Admin`
+  - *Then* no puede acceder a `/admin-bo` ni a `/api/v1/admin/*` (`403 Forbidden`).
+- **AC-F8.3 (Casas, Usuarios e Ítems en `/admin-bo`)**:
+  - *Given* un usuario `Admin` autenticado en `/admin-bo`
+  - *Then* consulta casas y detalle de casa (usuarios, ítems totales, Lista, Cesta, compras con ítems), lista y edita usuarios (estado `Activo|Bloqueado`, rol, estado autenticado, propiedades en BD, casas), y consulta el listado alfabético y filtrable de ítems mostrando `"N casas"` cuando coinciden texto (case-insensitive) y tipo en varias casas.
+- **AC-F8.4 (Configuraciones del sistema → Correo Electrónico Saliente)**:
+  - *Given* un usuario `Admin` en `Configuraciones → Correo Electrónico Saliente`
+  - *Then* puede configurar servidor SMTP, puerto, usuario, contraseña, cifrado y remitente, persistir la configuración en PostgreSQL y enviar un email de prueba desde la interfaz.
+- **AC-F8.5 (Notificaciones en `/admin-bo`)**:
+  - *Given* llega una nueva notificación
+  - *Then* se envía por correo a todos los administradores, aparece paginada de 10 en 10 en el tercio derecho del dashboard filtrada por `Nuevas` (con filtros `Todas`, `Nuevas`, `Leídas`, `Archivadas`), y al abrirla en el popup se marca como `Leída` permitiendo navegar `Anterior`/`Siguiente`.
+- **AC-F8.6 (Sistema de Invitaciones de Plataforma en `/admin-bo`)**:
+  - *Given* un `Admin` en la sección `Invitaciones`
+  - *Then* puede generar códigos con caducidad configurable (+7 días por defecto o indefinida), copiar URL, enviar por WhatsApp o múltiples emails (uno por línea), filtrar por rangos de fecha y estado (`Activas`, `Todas`, `Canjeadas`, `Canceladas`, `Expiradas`), cancelar, renovar (solo activas no caducadas) y reactivar (`1/7/15/30` días desde reactivación).
+- **AC-F8.7 (Canje de Invitación `/invitation-redeem/:code`)**:
+  - *When* un usuario entra en `/invitation-redeem/:code` y consigna/valida un código activo → pide registro en WillIAM y al completar canjea el código vinculando al usuario registrado antes de redirigir a `"Crear Casa o unirte a una"` (`/onboarding`).
+  - *When* el código es válido pero expirado → muestra botón para solicitar renovación enviando notificación + correo a admins y regresa al formulario de código.
+- **AC-F8.8 (Takeoff en `/join/:token` — "únete a una casa")**:
+  - *When* un usuario sin sesión autenticada abre `/join/:token` → se valida el enlace y se le ofrece **Registrarme ahora**, **Ya tengo cuenta (Introducir credenciales)** o **Continuar como invitado** (con posibilidad de registrarse después).

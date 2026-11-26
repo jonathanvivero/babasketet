@@ -26,12 +26,14 @@ test.describe('F1: Casas e Invitaciones', () => {
 		expect(urlText).toContain('/join/');
 		const joinPath = urlText.match(/\/join\/[A-Za-z0-9_-]+/)![0];
 
-		// 2º dispositivo abre el enlace directamente
+		// 2º dispositivo abre el enlace y elige continuar como invitado
 		const ctx2 = await browser.newContext();
 		const page2 = await ctx2.newPage();
 		await page2.goto(joinPath);
 		await enableFlutterSemantics(page2);
-		await expect(page2.getByText('Casa E2E').first()).toBeVisible();
+		await expect(sem(page2, 'join_takeoff_guest_btn')).toBeVisible({ timeout: 15_000 });
+		await sem(page2, 'join_takeoff_guest_btn').click();
+		await expect(page2.getByText('Casa E2E').first()).toBeVisible({ timeout: 15_000 });
 
 		await ctx1.close();
 		await ctx2.close();

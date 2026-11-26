@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
-import { zitadelFetch } from '$lib/server/zitadel';
+import { ensureRegisteredUserRoles, zitadelFetch } from '$lib/server/zitadel';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ url }) => {
@@ -23,6 +23,8 @@ export const load: PageServerLoad = async ({ url }) => {
 	if (!intent.userId) {
 		throw redirect(302, '/ui/v2/login/login?error=idp_user_not_found');
 	}
+
+	await ensureRegisteredUserRoles(intent.userId);
 
 	const session = await zitadelFetch<{ sessionId: string; sessionToken: string }>('/v2/sessions', {
 		method: 'POST',

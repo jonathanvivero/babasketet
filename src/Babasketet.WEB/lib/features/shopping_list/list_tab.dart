@@ -127,6 +127,7 @@ class _ListTabState extends ConsumerState<ListTab> {
     final state = ref.read(houseControllerProvider);
     final house = state.activeHouse;
     if (house == null) return;
+    final nameCtrl = TextEditingController(text: item.name);
     String? selectedTypeId = item.productTypeId;
 
     await showDialog<void>(
@@ -135,66 +136,82 @@ class _ListTabState extends ConsumerState<ListTab> {
         builder: (ctx, setDialogState) {
           final types = ref.watch(houseControllerProvider).productTypes;
           return AlertDialog(
-            title: Text('Tipo para "${item.name}"'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Semantics(
-                  container: true,
-                  identifier: 'list_type_dropdown',
-                  child: DropdownButtonFormField<String?>(
-                    value: selectedTypeId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Tipo de producto',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('Sin tipo (texto negro)'),
+            title: const Text('Editar elemento'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Semantics(
+                    container: true,
+                    identifier: 'list_edit_name_input',
+                    textField: true,
+                    child: TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Nombre del producto',
+                        border: OutlineInputBorder(),
                       ),
-                      ...types.map(
-                        (t) => DropdownMenuItem<String?>(
-                          value: t.id,
-                          child: Row(
-                            children: [
-                              ProductTypeDot(
-                                fillHex: t.fillHex,
-                                borderHex: t.borderHex,
-                              ),
-                              const SizedBox(width: 10),
-                              Flexible(child: Text(t.name)),
-                            ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Semantics(
+                    container: true,
+                    identifier: 'list_type_dropdown',
+                    child: DropdownButtonFormField<String?>(
+                      value: selectedTypeId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Tipo de producto',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Sin tipo (texto negro)'),
+                        ),
+                        ...types.map(
+                          (t) => DropdownMenuItem<String?>(
+                            value: t.id,
+                            child: Row(
+                              children: [
+                                ProductTypeDot(
+                                  fillHex: t.fillHex,
+                                  borderHex: t.borderHex,
+                                ),
+                                const SizedBox(width: 10),
+                                Flexible(child: Text(t.name)),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                    onChanged: (val) =>
-                        setDialogState(() => selectedTypeId = val),
+                      ],
+                      onChanged: (val) =>
+                          setDialogState(() => selectedTypeId = val),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Semantics(
-                  container: true,
-                  identifier: 'create_custom_type_btn',
-                  button: true,
-                  child: TextButton.icon(
-                    onPressed: () async {
-                      final created = await _openCreateCustomTypeDialog(house.id);
-                      if (created != null) {
-                        await ref
-                            .read(houseControllerProvider.notifier)
-                            .refreshActiveHouse();
-                        setDialogState(() => selectedTypeId = created.id);
-                      }
-                    },
-                    icon: const Icon(Icons.add_circle_outline),
-                    label: const Text('Crear tipo personalizado'),
+                  const SizedBox(height: 12),
+                  Semantics(
+                    container: true,
+                    identifier: 'create_custom_type_btn',
+                    button: true,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        final created =
+                            await _openCreateCustomTypeDialog(house.id);
+                        if (created != null) {
+                          await ref
+                              .read(houseControllerProvider.notifier)
+                              .refreshActiveHouse();
+                          setDialogState(() => selectedTypeId = created.id);
+                        }
+                      },
+                      icon: const Icon(Icons.add_circle_outline),
+                      label: const Text('Crear tipo personalizado'),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -207,9 +224,12 @@ class _ListTabState extends ConsumerState<ListTab> {
                 button: true,
                 child: FilledButton(
                   onPressed: () async {
+                    final trimmedName = nameCtrl.text.trim();
+                    if (trimmedName.isEmpty) return;
                     await ref.read(apiClientProvider).updateListItem(
                           house.id,
                           item.id,
+                          name: trimmedName,
                           productTypeId: selectedTypeId,
                           clearProductType: selectedTypeId == null,
                         );
@@ -479,7 +499,7 @@ class _ListTabState extends ConsumerState<ListTab> {
                                 .read(houseControllerProvider.notifier)
                                 .refreshActiveHouse();
                           },
-                          child: TwoSecondLongPress(
+                          child: ItemLongPressDetector(
                             onTriggered: () => _openTypePopup(item),
                             child: Semantics(
                               container: true,

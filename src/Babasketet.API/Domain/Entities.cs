@@ -1,5 +1,127 @@
 namespace Babasketet.API.Domain;
 
+public static class AppGlobalRoles
+{
+    public const string Guest = "Guest";
+    public const string User = "User";
+}
+
+public static class AppUserStatuses
+{
+    public const string Active = "Active";
+    public const string Blocked = "Blocked";
+}
+
+public static class HouseRoles
+{
+    public const string Owner = "owner";
+    public const string Member = "member";
+}
+
+public static class EmailSecurityModes
+{
+    public const string None = "None";
+    public const string StartTls = "StartTls";
+    public const string SslTls = "SslTls";
+    public const string Auto = "Auto";
+
+    public static readonly HashSet<string> Allowed =
+        new([None, StartTls, SslTls, Auto], StringComparer.OrdinalIgnoreCase);
+}
+
+public class SystemEmailConfig
+{
+    public static readonly Guid SingletonId = Guid.Parse("30000000-0000-0000-0000-000000000001");
+
+    public Guid Id { get; set; } = SingletonId;
+    public string Host { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+    public string? Username { get; set; }
+    public string? EncryptedPassword { get; set; }
+    public string SecurityMode { get; set; } = EmailSecurityModes.StartTls;
+    public string FromEmail { get; set; } = string.Empty;
+    public string FromName { get; set; } = "Babasketet";
+    public bool Enabled { get; set; } = true;
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public static class NotificationStatuses
+{
+    public const string New = "New";
+    public const string Read = "Read";
+    public const string Archived = "Archived";
+
+    public static readonly HashSet<string> Allowed =
+        new([New, Read, Archived], StringComparer.OrdinalIgnoreCase);
+}
+
+public class AdminNotification
+{
+    public Guid Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public string Category { get; set; } = "system";
+    public string Status { get; set; } = NotificationStatuses.New;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? ReadAt { get; set; }
+    public DateTimeOffset? ArchivedAt { get; set; }
+}
+
+public static class PlatformInvitationStatuses
+{
+    public const string Active = "Active";
+    public const string Redeemed = "Redeemed";
+    public const string Cancelled = "Cancelled";
+    public const string Expired = "Expired";
+
+    public static readonly HashSet<string> Allowed =
+        new([Active, Redeemed, Cancelled, Expired], StringComparer.OrdinalIgnoreCase);
+}
+
+public class PlatformInvitation
+{
+    public Guid Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? ExpiresAt { get; set; }
+    public DateTimeOffset? CancelledAt { get; set; }
+    public DateTimeOffset? RedeemedAt { get; set; }
+    public Guid? RedeemedByUserId { get; set; }
+
+    public AppUser? RedeemedByUser { get; set; }
+
+    public bool IsRedeemed => RedeemedAt.HasValue;
+    public bool IsCancelled => CancelledAt.HasValue;
+
+    public bool IsExpiredAt(DateTimeOffset now) =>
+        !IsRedeemed && !IsCancelled && ExpiresAt.HasValue && ExpiresAt.Value <= now;
+
+    public bool IsActiveAt(DateTimeOffset now) =>
+        !IsRedeemed && !IsCancelled && (!ExpiresAt.HasValue || ExpiresAt.Value > now);
+
+    public string ComputeStatus(DateTimeOffset now) =>
+        IsRedeemed ? PlatformInvitationStatuses.Redeemed :
+        IsCancelled ? PlatformInvitationStatuses.Cancelled :
+        IsExpiredAt(now) ? PlatformInvitationStatuses.Expired :
+        PlatformInvitationStatuses.Active;
+}
+
+public class AppUser
+{
+    public Guid Id { get; set; }
+    public string? ZitadelUserId { get; set; }
+    public Guid? DeviceId { get; set; }
+    public string GlobalRole { get; set; } = AppGlobalRoles.Guest;
+    public bool IsAdmin { get; set; }
+    public string Status { get; set; } = AppUserStatuses.Active;
+    public string? Email { get; set; }
+    public string? DisplayName { get; set; }
+    public string AuthMethod { get; set; } = "anonymous";
+    public string CustomPropertiesJson { get; set; } = "{}";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset LastSeenAt { get; set; }
+}
+
 public class House
 {
     public Guid Id { get; set; }

@@ -51,7 +51,10 @@ erDiagram
 | Tabla | Columnas Clave | Restricciones e Invariantes |
 | :--- | :--- | :--- |
 | `houses` | `id (uuid PK)`, `name (varchar 100)`, `active_store_id (uuid FK)`, `created_at`, `updated_at` | Nombre obligatorio (1..100 chars). |
-| `house_members` | `id (uuid PK)`, `house_id (FK)`, `user_id (varchar 128 nullable)`, `device_id (uuid nullable)`, `role (owner/member)`, `joined_at` | `CHECK (user_id IS NOT NULL OR device_id IS NOT NULL)`. Un `device_id` anónimo solo puede tener **1** fila activa; un `user_id` registrado hasta **4**. |
+| `app_users` | `id (uuid PK)`, `zitadel_user_id (varchar 128 nullable)`, `device_id (uuid nullable)`, `global_role (Guest/User)`, `is_admin (bool)`, `status (Active/Blocked)`, `email`, `display_name`, `auth_method`, `custom_properties_json`, `created_at`, `last_seen_at` | Índices únicos filtrados en `zitadel_user_id` y `device_id`. `Guest` no puede ser `Admin` ni tener `zitadel_user_id`. Migraciones EF Core reversibles en `Migrations/`. |
+| `system_email_configs` | `id (uuid PK)`, `host`, `port (1..65535)`, `username`, `encrypted_password`, `security_mode`, `from_email`, `from_name`, `enabled`, `updated_at` | Configuración SMTP saliente persistida en BD con contraseña cifrada (`IDataProtectionProvider`). |
+| `admin_notifications` | `id (uuid PK)`, `title`, `body`, `category`, `status (New/Read/Archived)`, `created_at`, `read_at`, `archived_at` | Notificaciones al equipo Admin con envío automático de email a todos los administradores activos. |
+| `house_members` | `id (uuid PK)`, `house_id (FK)`, `user_id (varchar 128 nullable)`, `device_id (uuid nullable)`, `role (owner/member)`, `joined_at` | `CHECK (user_id IS NOT NULL OR device_id IS NOT NULL)`, `CHECK (role <> 'owner' OR user_id IS NOT NULL)` y `ux_house_members_single_owner` (solo 1 `owner` por casa y únicamente `User`). Un `device_id` anónimo solo puede tener **1** fila activa; un `user_id` registrado hasta **4**. |
 | `house_invitations` | `id (uuid PK)`, `house_id (FK)`, `token_hash (char 64 UNIQUE)`, `created_at`, `expires_at`, `revoked_at` | `expires_at = created_at + interval '1 hour'`. Permite múltiples usos durante esa hora (para enviar a varios dispositivos/familiares) salvo revocación explícita. |
 | `stores` | `id (uuid PK)`, `house_id (uuid nullable FK)`, `name (varchar 80)`, `icon_key (varchar 64)`, `is_default (bool)`, `is_system (bool)` | `house_id IS NULL` → catálogo semilla global (las 24 tiendas ES/PT). `house_id IS NOT NULL` → tienda personalizada de esa casa. |
 | `product_types` | `id (uuid PK)`, `house_id (uuid nullable FK)`, `name (varchar 80)`, `fill_hex (char 7)`, `border_hex (char 7 nullable)`, `is_system (bool)` | `house_id IS NULL` → 18 tipos por defecto. `house_id IS NOT NULL` → tipos creados por el usuario. |
@@ -123,6 +126,7 @@ WHERE product_id = @productId
 | `GET` | `/api/v1/houses` | Lista las casas accesibles por el usuario/dispositivo actual (máx. 1 anónimo, máx. 4 registrado). |
 | `POST` | `/api/v1/houses` | Crea una nueva casa (`{ name }`). Valida el límite 1/4. |
 | `POST` | `/api/v1/houses/{houseId}/invitations` | Genera un enlace de invitación válido durante **1 hora** (`{ token, url, expiresAt }`). |
+| `GET` | `/api/v1/invitations/{token}` | Inspecciona la validez del token de invitación a una casa y devuelve el nombre de la casa (`410 Gone` si caducó/es inválido). |
 | `POST` | `/api/v1/invitations/{token}/join` | Une al usuario/dispositivo actual a la casa asociada al token. Valida expiración (410 Gone si caducó) y límite 1/4. |
 | `POST` | `/api/v1/houses/claim` | Vincula la casa anónima del `deviceId` al `userId` recién autenticado con `WillIAM`. |
 
@@ -154,7 +158,7 @@ WHERE product_id = @productId
 | Método | Ruta | Descripción |
 | :--- | :--- | :--- |
 | `GET` | `/api/v1/houses/{houseId}/basket` | Devuelve los items en la Cesta, el precio vigente para el supermercado activo (si existe) y el `total`. |
-| `PATCH` | `/api/v1/houses/{houseId}/basket/items/{itemId}` | Actualiza `quantity`, `productTypeId` o `format`. |
+| `PATCH` | `/api/v1/houses/{houseId}/basket/items/{itemId}` | Actualiza `name`, `quantity`, `productTypeId` o `format`. |
 | `PUT` | `/api/v1/houses/{houseId}/basket/items/{itemId}/price` | Consigna el precio para `(productId, activeStoreId)` ejecutando la lógica SCD-2 en `product_price_history`. |
 | `POST` | `/api/v1/houses/{houseId}/basket/items/{itemId}/move-to-list` | Devuelve el item de `Cesta` a `Lista` (swipe izquierda). |
 | `DELETE` | `/api/v1/houses/{houseId}/basket/items/{itemId}` | Elimina el item definitivamente de la `Cesta` (opción "Eliminar" en long-press). |
@@ -167,6 +171,32 @@ WHERE product_id = @productId
 | `GET` | `/api/v1/houses/{houseId}/purchases/{purchaseId}` | Detalle de elementos de una compra. |
 | `PATCH` | `/api/v1/houses/{houseId}/purchases/{purchaseId}/total` | Permite establecer o corregir el total manual de la compra (`{ manualTotal }`). |
 | `POST` | `/api/v1/houses/{houseId}/purchases/{purchaseId}/receipt` | Adjuntar foto de ticket — protegido por política `PremiumOnly` (devuelve `403 Forbidden` / `PREMIUM_REQUIRED` en plan Free). |
+
+### Perfil y Panel de Administración (`/api/v1/admin/*` — solo rol `Admin`)
+| Método | Ruta | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/v1/me` | Devuelve perfil, estado (`Active`/`Blocked`), roles efectivos (`Guest`, `User`, `Owner`, `Admin`) y casas/roles del llamante. |
+| `GET` | `/api/v1/admin/houses` | Listado de casas con conteos de usuarios, ítems totales, lista, cesta y compras. |
+| `GET` | `/api/v1/admin/houses/{houseId}` | Detalle de una casa: usuarios, ítems totales, ítems en Lista, ítems en Cesta y compras con sus ítems. |
+| `GET` | `/api/v1/admin/users` | Listado de usuarios registrados (`User`) e invitados (`Guest`) con estado, roles y casas. |
+| `GET` | `/api/v1/admin/users/{userId}` | Detalle de usuario con estado, autenticación, propiedades en BD y casas. |
+| `PUT` | `/api/v1/admin/users/{userId}` | Edición de estado (`Active`/`Blocked`), rol `Admin`, `Owner` por casa, nombre y propiedades clave-valor en BD. |
+| `GET` | `/api/v1/admin/items?q=...` | Catálogo global de ítems ordenados alfabéticamente, con tipo, filtro de texto y agrupación multi-casa (`"N casas"` si coincide texto case-insensitive y tipo). |
+| `GET` | `/api/v1/admin/settings/email` | Devuelve la configuración SMTP saliente guardada en BD (sin exponer la contraseña en claro). |
+| `PUT` | `/api/v1/admin/settings/email` | Guarda o actualiza la configuración SMTP saliente cifrando la contraseña en reposo. |
+| `POST` | `/api/v1/admin/settings/email/test` | Envía un correo electrónico de prueba real mediante SMTP (`MailKit`) al destinatario indicado. |
+| `GET` | `/api/v1/admin/notifications` | Listado paginado (10 en 10) de notificaciones con filtro multi-estado (`New`, `Read`, `Archived`, `All`). |
+| `POST` | `/api/v1/admin/notifications` | Crea una notificación para administradores y notifica por correo electrónico a todos los admins activos. |
+| `PATCH` | `/api/v1/admin/notifications/{id}/status` | Cambia estado (`New`, `Read`, `Archived`) actualizando `read_at` y `archived_at`. |
+| `GET` | `/api/v1/admin/invitations` | Lista invitaciones de plataforma filtrables por rango de fecha (`all`, `year`, `6months`, `3months`, `month`, `week`, `24h`) y estado (`Active` por defecto, `Redeemed`, `Cancelled`, `Expired`, `All`). |
+| `POST` | `/api/v1/admin/invitations` | Genera una invitación con código único y expiración por defecto a 7 días (modificable o indefinida). |
+| `POST` | `/api/v1/admin/invitations/{id}/cancel` | Cancela una invitación activa dejándola no operativa. |
+| `POST` | `/api/v1/admin/invitations/{id}/renew` | Renueva una invitación no caducada sumando `1/7/15/30` días o haciéndola indefinida. |
+| `POST` | `/api/v1/admin/invitations/{id}/reactivate` | Reactiva una invitación caducada o cancelada por `1/7/15/30` días desde el momento actual. |
+| `POST` | `/api/v1/admin/invitations/{id}/send-email` | Envía por SMTP la invitación con enlace `/invitation-redeem/{code}` a la lista de emails indicada. |
+| `GET` | `/api/v1/platform-invitations/{code}` | Comprueba públicamente si un código de invitación es válido, activo o expirado. |
+| `POST` | `/api/v1/platform-invitations/redeem` | Canjea una invitación activa vinculándola al usuario registrado autenticado. |
+| `POST` | `/api/v1/platform-invitations/request-renewal` | Solicita renovación de una invitación válida expirada generando alerta + email para administradores. |
 
 ---
 

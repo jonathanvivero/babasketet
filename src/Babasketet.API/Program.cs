@@ -15,8 +15,16 @@ builder.Services.AddSingleton(authOptions);
 builder.Services.AddSingleton<IDeviceTokenService>(deviceTokenService);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddHttpClient();
+builder.Services.AddDataProtection();
 builder.Services.AddScoped<ICallerContextAccessor, HttpCallerContextAccessor>();
 builder.Services.AddScoped<IHouseNotifier, SignalRHouseNotifier>();
+builder.Services.AddScoped<ISmtpDeliveryClient, MailKitSmtpDeliveryClient>();
+builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<AdminNotificationService>();
+builder.Services.AddScoped<PlatformInvitationService>();
+builder.Services.AddScoped<UserDirectoryService>();
+builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<HouseService>();
 builder.Services.AddScoped<ShoppingService>();
 
@@ -75,12 +83,23 @@ builder.Services.AddAuthentication(options =>
     {
         options.Authority = authOptions.OidcAuthority;
         options.RequireHttpsMetadata = authOptions.OidcAuthority.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+        if (Uri.TryCreate(authOptions.OidcIssuer, UriKind.Absolute, out var issuerUri) &&
+            Uri.TryCreate(authOptions.OidcAuthority, UriKind.Absolute, out var authorityUri) &&
+            !string.Equals(issuerUri.Authority, authorityUri.Authority, StringComparison.OrdinalIgnoreCase))
+        {
+            options.BackchannelHttpHandler = new ZitadelBackchannelHandler(issuerUri, authorityUri);
+        }
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidIssuers = [authOptions.OidcIssuer, authOptions.OidcAuthority],
             ValidateAudience = !string.IsNullOrWhiteSpace(authOptions.OidcAudience),
-            ValidAudience = authOptions.OidcAudience,
+            AudienceValidator = (audiences, _, _) =>
+            {
+                var valid = authOptions.GetValidAudiences();
+                if (valid.Count == 0) return true;
+                return audiences.Any(a => valid.Contains(a));
+            },
             NameClaimType = "sub"
         };
         options.Events = new JwtBearerEvents
@@ -124,6 +143,24 @@ app.UseExceptionHandler();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path;
+    if ((path.StartsWithSegments("/api") || path.StartsWithSegments("/hubs")) &&
+        context.User.Identity?.IsAuthenticated == true)
+    {
+        var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
+        var rawToken = authHeader?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true
+            ? authHeader["Bearer ".Length..].Trim()
+            : context.Request.Query["access_token"].FirstOrDefault();
+
+        var userDir = context.RequestServices.GetRequiredService<UserDirectoryService>();
+        await userDir.SyncAndValidateCallerAsync(rawToken, context.RequestAborted);
+    }
+
+    await next();
+});
 
 if (app.Environment.IsDevelopment())
 {

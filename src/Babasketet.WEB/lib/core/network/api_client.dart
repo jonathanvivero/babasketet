@@ -270,6 +270,7 @@ class BabasketetApiClient {
   Future<void> updateBasketItem(
     String houseId,
     String itemId, {
+    String? name,
     double? quantity,
     String? productTypeId,
     bool clearProductType = false,
@@ -279,6 +280,7 @@ class BabasketetApiClient {
         await _dio.patch<void>(
           '/api/v1/houses/$houseId/basket/items/$itemId',
           data: {
+            'name': name,
             'quantity': quantity,
             'productTypeId': productTypeId,
             'clearProductType': clearProductType,
@@ -351,5 +353,289 @@ class BabasketetApiClient {
           '/api/v1/houses/$houseId/purchases/$purchaseId/total',
           data: {'manualTotal': manualTotal},
         );
+      });
+
+  Future<MeResponse> getMe() => _wrap(() async {
+        final res = await _dio.get<Map<String, dynamic>>('/api/v1/me');
+        return MeResponse.fromJson(res.data!);
+      });
+
+  Future<List<AdminHouseSummaryDto>> adminGetHouses() => _wrap(() async {
+        final res = await _dio.get<List<dynamic>>('/api/v1/admin/houses');
+        return res.data!
+            .map((e) => AdminHouseSummaryDto.fromJson(e as Map<String, dynamic>))
+            .toList();
+      });
+
+  Future<AdminHouseDetailDto> adminGetHouseDetail(String houseId) =>
+      _wrap(() async {
+        final res =
+            await _dio.get<Map<String, dynamic>>('/api/v1/admin/houses/$houseId');
+        return AdminHouseDetailDto.fromJson(res.data!);
+      });
+
+  Future<List<AdminUserSummaryDto>> adminGetUsers() => _wrap(() async {
+        final res = await _dio.get<List<dynamic>>('/api/v1/admin/users');
+        return res.data!
+            .map((e) => AdminUserSummaryDto.fromJson(e as Map<String, dynamic>))
+            .toList();
+      });
+
+  Future<AdminUserDetailDto> adminGetUserDetail(String userId) =>
+      _wrap(() async {
+        final res =
+            await _dio.get<Map<String, dynamic>>('/api/v1/admin/users/$userId');
+        return AdminUserDetailDto.fromJson(res.data!);
+      });
+
+  Future<AdminUserDetailDto> adminUpdateUser(
+    String userId, {
+    required String status,
+    required bool isAdmin,
+    String? displayName,
+    Map<String, String>? customProperties,
+    List<({String houseId, bool isOwner})>? houseRoles,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.put<Map<String, dynamic>>(
+          '/api/v1/admin/users/$userId',
+          data: {
+            'status': status,
+            'isAdmin': isAdmin,
+            'displayName': displayName,
+            'customProperties': customProperties,
+            'houseRoles': houseRoles
+                ?.map((h) => {'houseId': h.houseId, 'isOwner': h.isOwner})
+                .toList(),
+          },
+        );
+        return AdminUserDetailDto.fromJson(res.data!);
+      });
+
+  Future<List<AdminCatalogItemDto>> adminGetItems({String? query}) =>
+      _wrap(() async {
+        final res = await _dio.get<List<dynamic>>(
+          '/api/v1/admin/items',
+          queryParameters:
+              query != null && query.trim().isNotEmpty ? {'q': query.trim()} : null,
+        );
+        return res.data!
+            .map((e) => AdminCatalogItemDto.fromJson(e as Map<String, dynamic>))
+            .toList();
+      });
+
+  Future<EmailConfigDto> adminGetEmailConfig() => _wrap(() async {
+        final res = await _dio
+            .get<Map<String, dynamic>>('/api/v1/admin/settings/email');
+        return EmailConfigDto.fromJson(res.data!);
+      });
+
+  Future<EmailConfigDto> adminSaveEmailConfig({
+    required String host,
+    required int port,
+    String? username,
+    String? password,
+    bool clearPassword = false,
+    required String securityMode,
+    required String fromEmail,
+    String? fromName,
+    required bool enabled,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.put<Map<String, dynamic>>(
+          '/api/v1/admin/settings/email',
+          data: {
+            'host': host,
+            'port': port,
+            'username': username,
+            'password': password,
+            'clearPassword': clearPassword,
+            'securityMode': securityMode,
+            'fromEmail': fromEmail,
+            'fromName': fromName,
+            'enabled': enabled,
+          },
+        );
+        return EmailConfigDto.fromJson(res.data!);
+      });
+
+  Future<TestEmailResultDto> adminSendTestEmail({
+    String? toEmail,
+    Map<String, dynamic>? overrideConfig,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/admin/settings/email/test',
+          data: {
+            'toEmail': toEmail,
+            if (overrideConfig != null) 'overrideConfig': overrideConfig,
+          },
+        );
+        return TestEmailResultDto.fromJson(res.data!);
+      });
+
+  Future<AdminNotificationsPageDto> adminGetNotifications({
+    String status = 'New',
+    int page = 1,
+    int pageSize = 10,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/api/v1/admin/notifications',
+          queryParameters: {
+            'status': status,
+            'page': page,
+            'pageSize': pageSize,
+          },
+        );
+        return AdminNotificationsPageDto.fromJson(res.data!);
+      });
+
+  Future<AdminNotificationDto> adminUpdateNotificationStatus(
+    String notificationId,
+    String status,
+  ) =>
+      _wrap(() async {
+        final res = await _dio.patch<Map<String, dynamic>>(
+          '/api/v1/admin/notifications/$notificationId/status',
+          data: {'status': status},
+        );
+        return AdminNotificationDto.fromJson(res.data!);
+      });
+
+  Future<List<PlatformInvitationDto>> adminGetPlatformInvitations({
+    String dateRange = 'all',
+    String statuses = 'Active',
+  }) =>
+      _wrap(() async {
+        final res = await _dio.get<List<dynamic>>(
+          '/api/v1/admin/invitations',
+          queryParameters: {
+            'dateRange': dateRange,
+            'statuses': statuses,
+          },
+        );
+        return res.data!
+            .map((e) =>
+                PlatformInvitationDto.fromJson(e as Map<String, dynamic>))
+            .toList();
+      });
+
+  Future<PlatformInvitationDto> adminCreatePlatformInvitation({
+    DateTime? expiresAt,
+    bool isIndefinite = false,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/admin/invitations',
+          data: {
+            'expiresAt': expiresAt?.toUtc().toIso8601String(),
+            'isIndefinite': isIndefinite,
+          },
+        );
+        return PlatformInvitationDto.fromJson(res.data!);
+      });
+
+  Future<PlatformInvitationDto> adminCancelPlatformInvitation(String id) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/admin/invitations/$id/cancel',
+        );
+        return PlatformInvitationDto.fromJson(res.data!);
+      });
+
+  Future<PlatformInvitationDto> adminRenewPlatformInvitation(
+    String id, {
+    int days = 7,
+    bool isIndefinite = false,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/admin/invitations/$id/renew',
+          data: {
+            'days': days,
+            'isIndefinite': isIndefinite,
+          },
+        );
+        return PlatformInvitationDto.fromJson(res.data!);
+      });
+
+  Future<PlatformInvitationDto> adminReactivatePlatformInvitation(
+    String id, {
+    int days = 7,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/admin/invitations/$id/reactivate',
+          data: {'days': days},
+        );
+        return PlatformInvitationDto.fromJson(res.data!);
+      });
+
+  Future<SendPlatformInvitationEmailsResultDto> adminSendPlatformInvitationEmails(
+    String id, {
+    required List<String> emails,
+    String? baseUrl,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/admin/invitations/$id/send-email',
+          data: {
+            'emails': emails,
+            if (baseUrl != null) 'baseUrl': baseUrl,
+          },
+        );
+        return SendPlatformInvitationEmailsResultDto.fromJson(res.data!);
+      });
+
+  Future<CheckPlatformInvitationResponseDto> checkPlatformInvitation(
+    String code,
+  ) =>
+      _wrap(() async {
+        final clean = Uri.encodeComponent(code.trim());
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/api/v1/platform-invitations/$clean',
+        );
+        return CheckPlatformInvitationResponseDto.fromJson(res.data!);
+      });
+
+  Future<RedeemPlatformInvitationResponseDto> redeemPlatformInvitation(
+    String code,
+  ) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/platform-invitations/redeem',
+          data: {'code': code.trim()},
+        );
+        return RedeemPlatformInvitationResponseDto.fromJson(res.data!);
+      });
+
+  Future<RequestInvitationRenewalResponseDto> requestPlatformInvitationRenewal(
+    String code, {
+    String? requesterEmail,
+    String? note,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/platform-invitations/request-renewal',
+          data: {
+            'code': code.trim(),
+            if (requesterEmail != null && requesterEmail.trim().isNotEmpty)
+              'requesterEmail': requesterEmail.trim(),
+            if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+          },
+        );
+        return RequestInvitationRenewalResponseDto.fromJson(res.data!);
+      });
+
+  Future<InspectHouseInvitationResponseDto> inspectHouseInvitation(
+    String token,
+  ) =>
+      _wrap(() async {
+        final clean = Uri.encodeComponent(token.trim());
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/api/v1/invitations/$clean',
+        );
+        return InspectHouseInvitationResponseDto.fromJson(res.data!);
       });
 }

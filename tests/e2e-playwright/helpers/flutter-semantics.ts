@@ -50,25 +50,35 @@ export async function expectSemanticContains(
 	}).toPass({ timeout: 15_000 });
 }
 
-export async function scrollUntilVisible(page: Page, locator: Locator): Promise<void> {
-	const box = page.viewportSize() ?? { width: 412, height: 915 };
-	await page.mouse.move(box.width / 2, box.height * 0.7);
-	for (let i = 0; i < 12; i++) {
-		if (await locator.isVisible().catch(() => false)) return;
+export async function scrollUntilVisible(
+	page: Page,
+	locator: Locator,
+	xFraction = 0.5
+): Promise<void> {
+	const vp = page.viewportSize() ?? { width: 412, height: 915 };
+	await page.mouse.move(vp.width * xFraction, vp.height * 0.7);
+	for (let i = 0; i < 15; i++) {
+		const visible = await locator.isVisible().catch(() => false);
+		if (visible) {
+			const box = await locator.boundingBox().catch(() => null);
+			if (box && box.y >= 0 && box.y + box.height <= vp.height - 16) {
+				return;
+			}
+		}
 		await page.mouse.wheel(0, 320);
 		await page.waitForTimeout(150);
 	}
 	await expect(locator).toBeVisible();
 }
 
-export async function longPress2s(page: Page, locator: Locator): Promise<void> {
+export async function longPress800ms(page: Page, locator: Locator): Promise<void> {
 	const box = await locator.boundingBox();
 	expect(box).not.toBeNull();
 	const x = box!.x + box!.width / 2;
 	const y = box!.y + box!.height / 2;
 	await page.mouse.move(x, y);
 	await page.mouse.down();
-	await page.waitForTimeout(2150);
+	await page.waitForTimeout(950);
 	await page.mouse.up();
 }
 

@@ -11,7 +11,8 @@ public sealed class HouseService(
     ICallerContextAccessor callerAccessor,
     IDeviceTokenService deviceTokenService,
     IHouseNotifier notifier,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    UserDirectoryService? userDirectory = null)
 {
     public async Task<HousesResponse> GetMyHousesAsync(CancellationToken ct)
     {
@@ -75,13 +76,19 @@ public sealed class HouseService(
             HouseId = house.Id,
             UserId = caller.IsRegistered ? caller.UserId : null,
             DeviceId = caller.IsRegistered ? null : effectiveDeviceId,
-            Role = "owner",
+            // Solo un usuario registrado (User) puede quedar como owner de una casa; los Guest son 'member'.
+            Role = caller.IsRegistered ? HouseRoles.Owner : HouseRoles.Member,
             JoinedAt = now
         };
 
         db.Houses.Add(house);
         db.HouseMembers.Add(member);
         await db.SaveChangesAsync(ct);
+
+        if (!caller.IsRegistered && effectiveDeviceId.HasValue && userDirectory is not null)
+        {
+            await userDirectory.EnsureAnonymousGuestRecordedAsync(effectiveDeviceId.Value, ct);
+        }
 
         return new CreateHouseResponse(
             new HouseDto(house.Id, house.Name, house.ActiveStoreId, "Default", house.CreatedAt),
@@ -109,6 +116,31 @@ public sealed class HouseService(
 
         await db.SaveChangesAsync(ct);
         return new InvitationResponse(token, $"/join/{token}", expiresAt);
+    }
+
+    public async Task<InspectHouseInvitationResponse> InspectInvitationAsync(string token, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            throw new InvitationExpiredException();
+        }
+
+        var hash = HashToken(token.Trim());
+        var invitation = await db.HouseInvitations
+            .AsNoTracking()
+            .Include(i => i.House)
+            .FirstOrDefaultAsync(i => i.TokenHash == hash, ct);
+
+        var now = timeProvider.GetUtcNow();
+        if (invitation is null || !invitation.IsActiveAt(now))
+        {
+            throw new InvitationExpiredException();
+        }
+
+        return new InspectHouseInvitationResponse(
+            invitation.HouseId,
+            invitation.House.Name,
+            invitation.ExpiresAt);
     }
 
     public async Task<JoinInvitationResponse> JoinByInvitationAsync(string token, CancellationToken ct)
@@ -152,17 +184,31 @@ public sealed class HouseService(
                 await EnsureWithinHouseLimitAsync(caller, ct);
             }
 
+            // Si la casa no tiene ningún usuario registrado todavía y quien canjea es User, queda como owner.
+            var assignOwner = false;
+            if (caller.IsRegistered)
+            {
+                var hasRegisteredMember = await db.HouseMembers
+                    .AnyAsync(m => m.HouseId == invitation.HouseId && m.UserId != null, ct);
+                assignOwner = !hasRegisteredMember;
+            }
+
             db.HouseMembers.Add(new HouseMember
             {
                 Id = Guid.NewGuid(),
                 HouseId = invitation.HouseId,
                 UserId = caller.IsRegistered ? caller.UserId : null,
                 DeviceId = caller.IsRegistered ? null : effectiveDeviceId,
-                Role = "member",
+                Role = assignOwner ? HouseRoles.Owner : HouseRoles.Member,
                 JoinedAt = now
             });
 
             await db.SaveChangesAsync(ct);
+
+            if (!caller.IsRegistered && effectiveDeviceId.HasValue && userDirectory is not null)
+            {
+                await userDirectory.EnsureAnonymousGuestRecordedAsync(effectiveDeviceId.Value, ct);
+            }
         }
 
         var h = invitation.House;
@@ -201,8 +247,22 @@ public sealed class HouseService(
 
         foreach (var membership in deviceMemberships)
         {
+            var houseHasOwner = await db.HouseMembers.AnyAsync(
+                m => m.HouseId == membership.HouseId && m.UserId != null && m.Role == HouseRoles.Owner,
+                ct);
+
             if (currentUserHouseIds.Contains(membership.HouseId))
             {
+                if (!houseHasOwner)
+                {
+                    var existingUserMembership = await db.HouseMembers.FirstOrDefaultAsync(
+                        m => m.HouseId == membership.HouseId && m.UserId == caller.UserId,
+                        ct);
+                    if (existingUserMembership is not null)
+                    {
+                        existingUserMembership.Role = HouseRoles.Owner;
+                    }
+                }
                 db.HouseMembers.Remove(membership);
                 continue;
             }
@@ -214,10 +274,15 @@ public sealed class HouseService(
 
             membership.UserId = caller.UserId;
             membership.DeviceId = null;
+            membership.Role = houseHasOwner ? HouseRoles.Member : HouseRoles.Owner;
             currentUserHouseIds.Add(membership.HouseId);
         }
 
         await db.SaveChangesAsync(ct);
+        if (userDirectory is not null)
+        {
+            await userDirectory.UpgradeGuestToUserAsync(deviceId.Value, caller, ct);
+        }
         return await GetMyHousesAsync(ct);
     }
 

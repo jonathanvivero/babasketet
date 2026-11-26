@@ -173,15 +173,16 @@ public sealed class ShoppingService(
             .FirstOrDefaultAsync(i => i.Id == itemId && i.HouseId == houseId, ct)
             ?? throw new ResourceNotFoundException("elemento de lista", itemId);
 
-        if (!string.IsNullOrWhiteSpace(request.Name))
+        var nameChanged = false;
+        if (request.Name is not null)
         {
-            var trimmed = request.Name.Trim();
-            if (trimmed.Length > 120)
+            var resolved = await ResolveOrRenameProductAsync(houseId, item.Product, request.Name, ct);
+            nameChanged = true;
+            if (resolved.Id != item.ProductId)
             {
-                throw new DomainValidationException("INVALID_PRODUCT_NAME", "El nombre no puede superar 120 caracteres.");
+                item.ProductId = resolved.Id;
+                item.Product = resolved;
             }
-            item.Product.Name = trimmed;
-            item.Product.NormalizedName = DomainCatalogs.NormalizeProductName(trimmed);
         }
 
         if (request.ClearProductType)
@@ -206,6 +207,10 @@ public sealed class ShoppingService(
 
         await db.SaveChangesAsync(ct);
         await notifier.NotifyListUpdatedAsync(houseId, ct);
+        if (nameChanged)
+        {
+            await notifier.NotifyBasketUpdatedAsync(houseId, ct);
+        }
 
         var typeEntity = item.ProductTypeId.HasValue
             ? await db.ProductTypes.FirstOrDefaultAsync(t => t.Id == item.ProductTypeId.Value, ct)
@@ -351,6 +356,18 @@ public sealed class ShoppingService(
             .FirstOrDefaultAsync(i => i.Id == itemId && i.HouseId == houseId, ct)
             ?? throw new ResourceNotFoundException("elemento de cesta", itemId);
 
+        var nameChanged = false;
+        if (request.Name is not null)
+        {
+            var resolved = await ResolveOrRenameProductAsync(houseId, item.Product, request.Name, ct);
+            nameChanged = true;
+            if (resolved.Id != item.ProductId)
+            {
+                item.ProductId = resolved.Id;
+                item.Product = resolved;
+            }
+        }
+
         if (request.Quantity.HasValue)
         {
             if (request.Quantity.Value <= 0)
@@ -382,6 +399,10 @@ public sealed class ShoppingService(
 
         await db.SaveChangesAsync(ct);
         await notifier.NotifyBasketUpdatedAsync(houseId, ct);
+        if (nameChanged)
+        {
+            await notifier.NotifyListUpdatedAsync(houseId, ct);
+        }
 
         var typeEntity = item.ProductTypeId.HasValue
             ? await db.ProductTypes.FirstOrDefaultAsync(t => t.Id == item.ProductTypeId.Value, ct)
@@ -718,6 +739,42 @@ public sealed class ShoppingService(
             .Where(h => h.ProductId == productId && h.StoreId == storeId && h.ValidTo == null)
             .Select(h => (decimal?)h.Price)
             .FirstOrDefaultAsync(ct);
+
+    private async Task<Product> ResolveOrRenameProductAsync(
+        Guid houseId,
+        Product currentProduct,
+        string rawName,
+        CancellationToken ct)
+    {
+        var trimmed = rawName.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed) || trimmed.Length > 120)
+        {
+            throw new DomainValidationException("INVALID_PRODUCT_NAME", "El nombre del producto debe tener entre 1 y 120 caracteres.");
+        }
+
+        var normalized = DomainCatalogs.NormalizeProductName(trimmed);
+        if (normalized == currentProduct.NormalizedName)
+        {
+            currentProduct.Name = trimmed;
+            currentProduct.LastUsedAt = timeProvider.GetUtcNow();
+            return currentProduct;
+        }
+
+        var existing = await db.Products
+            .FirstOrDefaultAsync(p => p.HouseId == houseId && p.NormalizedName == normalized && p.Id != currentProduct.Id, ct);
+
+        if (existing is not null)
+        {
+            existing.Name = trimmed;
+            existing.LastUsedAt = timeProvider.GetUtcNow();
+            return existing;
+        }
+
+        currentProduct.Name = trimmed;
+        currentProduct.NormalizedName = normalized;
+        currentProduct.LastUsedAt = timeProvider.GetUtcNow();
+        return currentProduct;
+    }
 
     private async Task EnsureValidProductTypeAsync(Guid houseId, Guid productTypeId, CancellationToken ct)
     {

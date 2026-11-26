@@ -63,7 +63,7 @@ tests/e2e-playwright/
 
 ### `04-list-gestures-and-types.spec.ts` — Pestaña `Lista`
 - **E2E-11**: Añadir `"Manzanas"` con la caja de texto y botón derecho; usar el botón izquierdo para re-seleccionar un item usado anteriormente; usar el botón redondo `[+]` y comprobar sugerencias mientras escribe.
-- **E2E-12**: Verificar texto en **negro** sin círculo por defecto; realizar **long-press de 2.1 segundos** → abrir popup → asignar `Fruta/Verdura` → verificar indicador visual del tipo.
+- **E2E-12**: Verificar texto en **negro** sin círculo por defecto; realizar **long-press (~900 ms)** → abrir popup → **editar el nombre** y asignar `Fruta/Verdura` → verificar nuevo nombre e indicador visual del tipo.
 - **E2E-13**: Crear un **tipo personalizado** (nombre, color de fondo y borde) desde el popup y asignarlo a un item.
 - **E2E-14**: **Reordenar** 2 items mediante drag & drop y recargar página para confirmar persistencia del orden.
 - **E2E-15**: **Swipe derecha** sobre un item lo mueve a `Cesta`; **Swipe izquierda** sobre otro lo elimina de `Lista`.
@@ -72,7 +72,7 @@ tests/e2e-playwright/
 - **E2E-16**: En `Cesta`, tocar la unidad (`1 ud.`) y deslizar hacia arriba → pasa a `2 ud.`; deslizar hacia abajo → vuelve a `1 ud.`.
 - **E2E-17**: Consignar precio (`2,50`) para `"Leche"` en `Mercadona` → verificar actualización del **Total** (`SUM(precio * unidades)`). Cambiar supermercado a `Lidl` → verificar que no se muestra precio para `"Leche"`; volver a `Mercadona` → vuelve a mostrarse `2,50`.
 - **E2E-18**: Actualizar precio de `2,50` a `2,75` en `Mercadona` y confirmar que el nuevo precio rige el Total.
-- **E2E-19**: **Long-press > 2s** en `Cesta` → cambiar formato a `Pack-6` y cambiar unidades desde el popup; probar opción **Eliminar** (desaparece sin volver a `Lista`).
+- **E2E-19**: **Long-press (~900 ms)** en `Cesta` → **editar el nombre**, cambiar formato a `Pack-6` y cambiar unidades desde el popup; probar opción **Eliminar** (desaparece sin volver a `Lista`).
 - **E2E-20**: **Swipe izquierda** en `Cesta` devuelve el producto a `Lista`.
 - **E2E-21**: Pulsar **"Efectuar Compra"** → verificar diálogo de confirmación → confirmar → la `Cesta` queda vacía y la compra aparece en `Compras`.
 
@@ -86,6 +86,32 @@ tests/e2e-playwright/
   1. `Dispositivo 1` añade `"Café"` en `Lista` → `Dispositivo 2` y `Dispositivo 3` lo ven aparecer sin recargar.
   2. `Dispositivo 2` desliza `"Café"` a `Cesta` y sube a `2 ud.` → `Dispositivo 1` y `Dispositivo 3` ven el cambio en `Cesta`.
   3. `Dispositivo 3` consigna precio y pulsa **"Efectuar Compra"** → los 3 dispositivos ven la `Cesta` vacía y la nueva compra en `Compras`.
+
+---
+
+### `08-pwa-install-and-account.spec.ts` — Prompt PWA, Icono y Cuenta en App Instalada
+- **E2E-26**: En la primera visita aparece `pwa_install_banner`; al cerrarlo y recargar la página no vuelve a aparecer.
+- **E2E-27**: `manifest.json`, `favicon.png`, `icons/Icon-192.png` y `icons/Icon-512.png` responden `200 OK` con iconos válidos.
+- **E2E-28**: En el Dashboard (y simulando modo `standalone`), el botón de cuenta (`account_btn`) permanece visible y abre el diálogo con acceso a `"Crear cuenta / Iniciar sesión"`.
+
+### `09-admin-panel-and-roles.spec.ts` — Panel `/admin-bo`, Primer Acceso Admin y Roles
+- **E2E-29**: Verifica en Zitadel los 4 roles (`Guest`, `User`, `Admin`, `Owner`) y el usuario `jonathanvivero@gmail.com` con `passwordChangeRequired: true`; valida el flujo completo de cambio obligatorio de contraseña en primer acceso vía `WillIAM.UI` y recorre `/admin-bo` (Casas + detalle, Usuarios + edición, Ítems ordenados/filtrados).
+- **E2E-30**: Verifica que un usuario registrado estándar (`User` sin `Admin`) recibe `403 · Acceso denegado` en `/admin-bo`.
+
+### `10-admin-email-config.spec.ts` — Configuraciones > Correo Electrónico Saliente
+- **E2E-31**: Admin accede a `Configuraciones → Correo Electrónico Saliente`, configura SMTP contra `mailpit:1025`, recarga para confirmar persistencia en BD y envía email de prueba real verificado en Mailpit API.
+
+### `11-admin-notifications.spec.ts` — Notificaciones Admin
+- **E2E-32**: Verifica que las notificaciones envían correo real a admins, se muestran en el panel de `/admin-bo`, se abren en popup marcándose como `Leídas`, navegan `Siguiente`/`Anterior` y pasan a `Archivadas`.
+
+### `12-admin-invitations.spec.ts` — Sistema de Invitaciones Admin
+- **E2E-33**: Admin genera invitación (+7d por defecto), copia URL / WhatsApp y envía por email (verificado en Mailpit), renueva `+7d`, cancela, filtra y reactiva `7d`.
+
+### `13-invitations-redeem.spec.ts` — Canje `/invitation-redeem/:code`
+- **E2E-34**: Código expirado solicita renovación (notifica en `/admin-bo` y Mailpit) y vuelve al prompt de código; código válido registra en WillIAM, canjea y pasa a `/onboarding` dejando vínculo en `Canjeadas`.
+
+### `14-house-joining-takeoff.spec.ts` — Decisión al Entrar por `/join/:token`
+- **E2E-35**: Al llegar al enlace de invitación a una casa pregunta al usuario entre **Registrarme ahora**, **Introducir credenciales** o **Continuar como invitado**, completando las 3 vías hasta el Dashboard de la casa.
 
 ---
 

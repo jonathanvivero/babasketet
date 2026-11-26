@@ -23,3 +23,4 @@ services:
       - iam-net
     volumes:
       - ./tests/e2e-playwright/test-results:/app/test-results
+      - zitadel-bootstrap:/zitadel-bootstrap:ro

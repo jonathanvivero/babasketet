@@ -97,7 +97,7 @@ Valor por defecto al crear cualquier item: **`Ud`** (`Ud.`).
 | **Duración de enlace de invitación** | `1 hora` (`3600 segundos`) desde su creación |
 | **Canales de compartición de Casa** | Enlace URL directo, WhatsApp, Correo electrónico, Código QR |
 | **Campos obligatorios de un ítem** | Solo `Nombre`. Valores por defecto: `Tipo = null`, `Formato = Ud.`, `Precio = 0,00` |
-| **Duración de Long-Press para popup** | **> 2 segundos** (`>= 2000 ms`) tanto en `Lista` como en `Cesta` |
+| **Duración de Long-Press para popup** | **800 ms** (reducido desde > 2 s en ≥ 1 s) tanto en `Lista` como en `Cesta` |
 | **Unidades por defecto en `Cesta`** | `1 ud.` |
 | **Histórico de precios** | Clave temporal por `(Producto, Supermercado)` con `FechaAlta` y `FechaBaja`. Exactamente un registro vigente (`FechaBaja IS NULL`) por par `(Producto, Supermercado)` |
 | **Foto del ticket en `Compras`** | **Bloqueado (Locked)** — reservado exclusivamente para versión Premium |

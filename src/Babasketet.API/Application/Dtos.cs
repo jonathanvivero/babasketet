@@ -3,10 +3,15 @@ namespace Babasketet.API.Application;
 public sealed record CallerIdentity(
     string? UserId,
     Guid? DeviceId,
-    bool IsPremium)
+    bool IsPremium,
+    string? Email = null,
+    string? DisplayName = null,
+    IReadOnlyCollection<string>? Roles = null)
 {
     public bool IsRegistered => !string.IsNullOrWhiteSpace(UserId);
     public bool IsAnonymous => !IsRegistered && DeviceId.HasValue;
+    public bool HasRole(string role) =>
+        Roles?.Any(r => string.Equals(r, role, StringComparison.OrdinalIgnoreCase)) == true;
 }
 
 public interface ICallerContextAccessor
@@ -50,6 +55,11 @@ public sealed record CreateHouseResponse(
 public sealed record InvitationResponse(
     string Token,
     string Path,
+    DateTimeOffset ExpiresAt);
+
+public sealed record InspectHouseInvitationResponse(
+    Guid HouseId,
+    string HouseName,
     DateTimeOffset ExpiresAt);
 
 public sealed record JoinInvitationResponse(
@@ -130,7 +140,8 @@ public sealed record UpdateBasketItemRequest(
     decimal? Quantity,
     Guid? ProductTypeId,
     bool ClearProductType,
-    string? Format);
+    string? Format,
+    string? Name = null);
 
 public sealed record SetPriceRequest(decimal Price);
 
@@ -174,3 +185,251 @@ public sealed record PurchaseDetailDto(
     IReadOnlyList<PurchaseItemDto> Items);
 
 public sealed record UpdateManualTotalRequest(decimal ManualTotal);
+
+// === Perfil del llamante y Panel Admin (/admin-bo) ===
+public sealed record MeHouseRoleDto(
+    Guid HouseId,
+    string HouseName,
+    string HouseRole);
+
+public sealed record MeResponse(
+    Guid? AppUserId,
+    string? ZitadelUserId,
+    Guid? DeviceId,
+    string GlobalRole,
+    bool IsAuthenticated,
+    bool IsAdmin,
+    string Status,
+    string? Email,
+    string? DisplayName,
+    IReadOnlyList<string> EffectiveRoles,
+    IReadOnlyList<MeHouseRoleDto> Houses);
+
+public sealed record AdminHouseSummaryDto(
+    Guid Id,
+    string Name,
+    string ActiveStoreName,
+    int MemberCount,
+    int TotalProductsCount,
+    int ListItemsCount,
+    int BasketItemsCount,
+    int PurchasesCount,
+    DateTimeOffset CreatedAt);
+
+public sealed record AdminHouseMemberDto(
+    Guid MembershipId,
+    Guid? AppUserId,
+    string? ZitadelUserId,
+    Guid? DeviceId,
+    string DisplayName,
+    string? Email,
+    string GlobalRole,
+    bool IsAuthenticated,
+    bool IsAdmin,
+    string UserStatus,
+    string HouseRole,
+    DateTimeOffset JoinedAt);
+
+public sealed record AdminSimpleItemDto(
+    Guid Id,
+    Guid ProductId,
+    string Name,
+    string? ProductTypeName,
+    string? ProductTypeFillHex,
+    string Format,
+    decimal? Quantity);
+
+public sealed record AdminHouseDetailDto(
+    Guid Id,
+    string Name,
+    string ActiveStoreName,
+    DateTimeOffset CreatedAt,
+    int TotalProductsCount,
+    IReadOnlyList<AdminHouseMemberDto> Members,
+    IReadOnlyList<AdminSimpleItemDto> ListItems,
+    IReadOnlyList<AdminSimpleItemDto> BasketItems,
+    IReadOnlyList<PurchaseDetailDto> Purchases);
+
+public sealed record AdminUserHouseMembershipDto(
+    Guid HouseId,
+    string HouseName,
+    string HouseRole,
+    DateTimeOffset JoinedAt);
+
+public sealed record AdminUserSummaryDto(
+    Guid Id,
+    string? ZitadelUserId,
+    Guid? DeviceId,
+    string DisplayName,
+    string? Email,
+    string Status,
+    string GlobalRole,
+    bool IsAdmin,
+    bool IsAuthenticated,
+    IReadOnlyList<string> EffectiveRoles,
+    int HousesCount,
+    int OwnedHousesCount,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset LastSeenAt);
+
+public sealed record AdminUserDetailDto(
+    Guid Id,
+    string? ZitadelUserId,
+    Guid? DeviceId,
+    string DisplayName,
+    string? Email,
+    string Status,
+    string GlobalRole,
+    bool IsAdmin,
+    bool IsAuthenticated,
+    string AuthMethod,
+    IReadOnlyList<string> EffectiveRoles,
+    IReadOnlyDictionary<string, string> CustomProperties,
+    IReadOnlyList<AdminUserHouseMembershipDto> Houses,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset LastSeenAt);
+
+public sealed record AdminUserHouseRoleUpdate(
+    Guid HouseId,
+    bool IsOwner);
+
+public sealed record AdminUpdateUserRequest(
+    string Status,
+    bool IsAdmin,
+    string? DisplayName,
+    IReadOnlyDictionary<string, string>? CustomProperties,
+    IReadOnlyList<AdminUserHouseRoleUpdate>? HouseRoles);
+
+public sealed record AdminCatalogItemDto(
+    string NormalizedName,
+    string Name,
+    Guid? ProductTypeId,
+    string ProductTypeName,
+    string? ProductTypeFillHex,
+    int HouseCount,
+    Guid? SingleHouseId,
+    string LocationLabel);
+
+// === Configuracion de Correo Saliente (SMTP) ===
+public sealed record EmailConfigDto(
+    bool IsConfigured,
+    string Host,
+    int Port,
+    string? Username,
+    bool HasPassword,
+    string SecurityMode,
+    string FromEmail,
+    string FromName,
+    bool Enabled,
+    DateTimeOffset? UpdatedAt);
+
+public sealed record SaveEmailConfigRequest(
+    string Host,
+    int Port,
+    string? Username,
+    string? Password,
+    bool ClearPassword,
+    string SecurityMode,
+    string FromEmail,
+    string? FromName,
+    bool Enabled);
+
+public sealed record TestEmailRequest(
+    string? ToEmail,
+    SaveEmailConfigRequest? OverrideConfig = null);
+
+public sealed record TestEmailResultDto(
+    bool Success,
+    string Recipient,
+    string Message,
+    DateTimeOffset SentAt);
+
+// === Sistema de Notificaciones Admin ===
+public sealed record AdminNotificationDto(
+    Guid Id,
+    string Title,
+    string Body,
+    string Category,
+    string Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? ReadAt,
+    DateTimeOffset? ArchivedAt);
+
+public sealed record AdminNotificationsPageDto(
+    IReadOnlyList<AdminNotificationDto> Items,
+    int Page,
+    int PageSize,
+    int TotalCount,
+    int TotalPages,
+    int NewCount);
+
+// === Sistema de Invitaciones de Plataforma ===
+public sealed record PlatformInvitationRedeemerDto(
+    Guid UserId,
+    string DisplayName,
+    string? Email);
+
+public sealed record PlatformInvitationDto(
+    Guid Id,
+    string Code,
+    string Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? ExpiresAt,
+    bool IsIndefinite,
+    DateTimeOffset? CancelledAt,
+    DateTimeOffset? RedeemedAt,
+    PlatformInvitationRedeemerDto? RedeemedBy);
+
+public sealed record CreatePlatformInvitationRequest(
+    DateTimeOffset? ExpiresAt = null,
+    bool IsIndefinite = false);
+
+public sealed record RenewPlatformInvitationRequest(
+    int Days = 7,
+    bool IsIndefinite = false);
+
+public sealed record ReactivatePlatformInvitationRequest(
+    int Days = 7);
+
+public sealed record SendPlatformInvitationEmailsRequest(
+    IReadOnlyList<string> Emails,
+    string? BaseUrl = null);
+
+public sealed record SendPlatformInvitationEmailsResultDto(
+    int SentCount,
+    IReadOnlyList<string> Recipients,
+    string Message);
+
+public sealed record CheckPlatformInvitationResponse(
+    string Code,
+    string Status,
+    bool IsValid,
+    bool CanRedeem,
+    bool IsExpired,
+    DateTimeOffset? ExpiresAt,
+    string Message);
+
+public sealed record RedeemPlatformInvitationRequest(
+    string Code);
+
+public sealed record RedeemPlatformInvitationResponse(
+    bool Redeemed,
+    string Code,
+    Guid? RedeemedByUserId,
+    DateTimeOffset? RedeemedAt);
+
+public sealed record RequestInvitationRenewalRequest(
+    string Code,
+    string? RequesterEmail = null,
+    string? Note = null);
+
+public sealed record RequestInvitationRenewalResponse(
+    bool Sent,
+    string Message);
+
+public sealed record CreateAdminNotificationRequest(
+    string Title,
+    string Body,
+    string? Category = "system");
+
+public sealed record UpdateNotificationStatusRequest(string Status);

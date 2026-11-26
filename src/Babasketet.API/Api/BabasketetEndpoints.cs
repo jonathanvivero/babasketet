@@ -9,6 +9,11 @@ public static class BabasketetEndpoints
     {
         var v1 = app.MapGroup("/api/v1");
 
+        // === Perfil del llamante (/api/v1/me) ===
+        v1.MapGet("/me", async (HttpContext http, UserDirectoryService userDir, CancellationToken ct) =>
+            Results.Ok(await userDir.GetMeAsync(ExtractBearer(http), ct)))
+            .AllowAnonymous();
+
         // === Casas e Invitaciones ===
         v1.MapGet("/houses", async (HouseService svc, CancellationToken ct) =>
             Results.Ok(await svc.GetMyHousesAsync(ct)))
@@ -21,6 +26,10 @@ public static class BabasketetEndpoints
         v1.MapPost("/houses/{houseId:guid}/invitations", async (Guid houseId, HouseService svc, CancellationToken ct) =>
             Results.Ok(await svc.CreateInvitationAsync(houseId, ct)))
             .RequireAuthorization();
+
+        v1.MapGet("/invitations/{token}", async (string token, HouseService svc, CancellationToken ct) =>
+            Results.Ok(await svc.InspectInvitationAsync(token, ct)))
+            .AllowAnonymous();
 
         v1.MapPost("/invitations/{token}/join", async (string token, HouseService svc, CancellationToken ct) =>
             Results.Ok(await svc.JoinByInvitationAsync(token, ct)))
@@ -140,8 +149,145 @@ public static class BabasketetEndpoints
             return Results.Ok();
         }).RequireAuthorization();
 
+        // === Panel de Administración (/api/v1/admin/* - solo Admin) ===
+        var admin = v1.MapGroup("/admin").RequireAuthorization();
+
+        admin.MapGet("/houses", async (HttpContext http, AdminService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetHousesAsync(ExtractBearer(http), ct)));
+
+        admin.MapGet("/houses/{houseId:guid}", async (Guid houseId, HttpContext http, AdminService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetHouseDetailAsync(houseId, ExtractBearer(http), ct)));
+
+        admin.MapGet("/users", async (HttpContext http, AdminService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetUsersAsync(ExtractBearer(http), ct)));
+
+        admin.MapGet("/users/{userId:guid}", async (Guid userId, HttpContext http, AdminService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetUserDetailAsync(userId, ExtractBearer(http), ct)));
+
+        admin.MapPut("/users/{userId:guid}", async (Guid userId, AdminUpdateUserRequest req, HttpContext http, AdminService svc, CancellationToken ct) =>
+            Results.Ok(await svc.UpdateUserAsync(userId, req, ExtractBearer(http), ct)));
+
+        admin.MapGet("/items", async (string? q, HttpContext http, AdminService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetItemsAsync(q, ExtractBearer(http), ct)));
+
+        admin.MapGet("/settings/email", async (HttpContext http, EmailService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetConfigForAdminAsync(ExtractBearer(http), ct)));
+
+        admin.MapPut("/settings/email", async (SaveEmailConfigRequest req, HttpContext http, EmailService svc, CancellationToken ct) =>
+            Results.Ok(await svc.SaveConfigForAdminAsync(req, ExtractBearer(http), ct)));
+
+        admin.MapPost("/settings/email/test", async (TestEmailRequest req, HttpContext http, EmailService svc, CancellationToken ct) =>
+            Results.Ok(await svc.SendTestEmailForAdminAsync(req, ExtractBearer(http), ct)));
+
+        admin.MapGet("/notifications", async (
+                string? status,
+                int? page,
+                int? pageSize,
+                HttpContext http,
+                AdminNotificationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.GetPagedForAdminAsync(status, page ?? 1, pageSize ?? 10, ExtractBearer(http), ct)));
+
+        admin.MapPost("/notifications", async (
+                CreateAdminNotificationRequest req,
+                HttpContext http,
+                AdminNotificationService svc,
+                CancellationToken ct) =>
+        {
+            var created = await svc.CreateFromAdminAsync(req, ExtractBearer(http), ct);
+            return Results.Created($"/api/v1/admin/notifications/{created.Id}", created);
+        });
+
+        admin.MapPatch("/notifications/{notificationId:guid}/status", async (
+                Guid notificationId,
+                UpdateNotificationStatusRequest req,
+                HttpContext http,
+                AdminNotificationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.UpdateStatusForAdminAsync(notificationId, req, ExtractBearer(http), ct)));
+
+        admin.MapGet("/invitations", async (
+                string? dateRange,
+                string? statuses,
+                HttpContext http,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.GetListForAdminAsync(dateRange, statuses, ExtractBearer(http), ct)));
+
+        admin.MapPost("/invitations", async (
+                CreatePlatformInvitationRequest req,
+                HttpContext http,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+        {
+            var created = await svc.CreateForAdminAsync(req, ExtractBearer(http), ct);
+            return Results.Created($"/api/v1/admin/invitations/{created.Id}", created);
+        });
+
+        admin.MapPost("/invitations/{invitationId:guid}/cancel", async (
+                Guid invitationId,
+                HttpContext http,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.CancelAsync(invitationId, ExtractBearer(http), ct)));
+
+        admin.MapPost("/invitations/{invitationId:guid}/renew", async (
+                Guid invitationId,
+                RenewPlatformInvitationRequest req,
+                HttpContext http,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.RenewAsync(invitationId, req, ExtractBearer(http), ct)));
+
+        admin.MapPost("/invitations/{invitationId:guid}/reactivate", async (
+                Guid invitationId,
+                ReactivatePlatformInvitationRequest req,
+                HttpContext http,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.ReactivateAsync(invitationId, req, ExtractBearer(http), ct)));
+
+        admin.MapPost("/invitations/{invitationId:guid}/send-email", async (
+                Guid invitationId,
+                SendPlatformInvitationEmailsRequest req,
+                HttpContext http,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.SendByEmailAsync(invitationId, req, ExtractBearer(http), ct)));
+
+        // === Canje y solicitud de renovación de Invitaciones de Plataforma ===
+        v1.MapGet("/platform-invitations/{code}", async (
+                string code,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.CheckPublicAsync(code, ct)))
+            .AllowAnonymous();
+
+        v1.MapPost("/platform-invitations/redeem", async (
+                RedeemPlatformInvitationRequest req,
+                HttpContext http,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.RedeemAsync(req, ExtractBearer(http), ct)))
+            .RequireAuthorization();
+
+        v1.MapPost("/platform-invitations/request-renewal", async (
+                RequestInvitationRenewalRequest req,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.RequestRenewalAsync(req, ct)))
+            .AllowAnonymous();
+
         app.MapHub<HouseHub>("/hubs/house");
 
         return app;
+    }
+
+    private static string? ExtractBearer(HttpContext http)
+    {
+        var authHeader = http.Request.Headers.Authorization.FirstOrDefault();
+        return authHeader?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true
+            ? authHeader["Bearer ".Length..].Trim()
+            : null;
     }
 }

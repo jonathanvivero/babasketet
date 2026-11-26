@@ -2,26 +2,25 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-/// Detector personalizado para cumplir el requisito exacto de
-/// pulsacion larga continua > 2 segundos (>= 2000 ms), mostrando
-/// un indicador circular sutil mientras se mantiene pulsado.
-class TwoSecondLongPress extends StatefulWidget {
+/// Detector personalizado de pulsación larga continua (800 ms por defecto)
+/// para abrir el popup de edición de un item en Lista o Cesta.
+class ItemLongPressDetector extends StatefulWidget {
   final Widget child;
   final VoidCallback onTriggered;
   final Duration duration;
 
-  const TwoSecondLongPress({
+  const ItemLongPressDetector({
     super.key,
     required this.child,
     required this.onTriggered,
-    this.duration = const Duration(seconds: 2),
+    this.duration = const Duration(milliseconds: 800),
   });
 
   @override
-  State<TwoSecondLongPress> createState() => _TwoSecondLongPressState();
+  State<ItemLongPressDetector> createState() => _ItemLongPressDetectorState();
 }
 
-class _TwoSecondLongPressState extends State<TwoSecondLongPress> {
+class _ItemLongPressDetectorState extends State<ItemLongPressDetector> {
   Timer? _timer;
   Offset? _downPosition;
   bool _holding = false;

@@ -6,6 +6,8 @@ using Babasketet.API.Infrastructure;
 using FluentAssertions;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
@@ -252,6 +254,520 @@ public sealed class BabasketetApiIntegrationTests(BabasketetApiFixture fixture)
         await Task.WhenAll(
             tcs2.Task.WaitAsync(TimeSpan.FromSeconds(5)),
             tcs3.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public async Task IT_API_12_RenameItem_InListAndBasket_ShouldUpdateAndAvoidDuplicateProductCrash()
+    {
+        using var anon = fixture.CreateClientWithToken();
+        var created = await (await anon.PostAsJsonAsync("/api/v1/houses", new CreateHouseRequest("Casa Renombrar")))
+            .Content.ReadFromJsonAsync<CreateHouseResponse>();
+        var houseId = created!.House.Id;
+        using var client = fixture.CreateClientWithToken(created.DeviceToken);
+
+        // Creamos previamente un producto "Leche Desnatada" para probar colisión de nombre normalizado
+        var existingItem = await (await client.PostAsJsonAsync($"/api/v1/houses/{houseId}/list/items",
+            new AddListItemRequest(null, "Leche Desnatada", null, null))).Content.ReadFromJsonAsync<ShoppingListItemDto>();
+        (await client.DeleteAsync($"/api/v1/houses/{houseId}/list/items/{existingItem!.Id}")).EnsureSuccessStatusCode();
+
+        var item = await (await client.PostAsJsonAsync($"/api/v1/houses/{houseId}/list/items",
+            new AddListItemRequest(null, "Leche", null, null))).Content.ReadFromJsonAsync<ShoppingListItemDto>();
+
+        // Renombrar en Lista a un nombre nuevo
+        var renamedInList = await (await client.PatchAsJsonAsync(
+            $"/api/v1/houses/{houseId}/list/items/{item!.Id}",
+            new UpdateListItemRequest("Leche Entera", null, false, null))).Content.ReadFromJsonAsync<ShoppingListItemDto>();
+        renamedInList!.Name.Should().Be("Leche Entera");
+
+        // Mover a Cesta y renombrar al producto ya existente ("Leche Desnatada") sin violar unique constraint
+        var basketItem = await (await client.PostAsync(
+            $"/api/v1/houses/{houseId}/list/items/{item.Id}/move-to-basket", null))
+            .Content.ReadFromJsonAsync<BasketItemDto>();
+
+        var renamedInBasket = await (await client.PatchAsJsonAsync(
+            $"/api/v1/houses/{houseId}/basket/items/{basketItem!.Id}",
+            new UpdateBasketItemRequest(null, null, false, null, "Leche Desnatada"))).Content.ReadFromJsonAsync<BasketItemDto>();
+        renamedInBasket!.Name.Should().Be("Leche Desnatada");
+
+        var basket = await client.GetFromJsonAsync<BasketResponse>($"/api/v1/houses/{houseId}/basket");
+        basket!.Items.Should().ContainSingle(i => i.Name == "Leche Desnatada");
+    }
+
+    [Fact]
+    public async Task IT_API_13_Migrations_ShouldBeSyncAndReversibleUpDown()
+    {
+        using var scope = fixture.Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BabasketetDbContext>();
+
+        db.Database.HasPendingModelChanges().Should().BeFalse();
+
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync("20261125000001_InitialBaseline");
+        var appliedAfterDown = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+        appliedAfterDown.Should().Contain("20261125000001_InitialBaseline");
+        appliedAfterDown.Should().NotContain("20261125000002_AddAppUsersAndOwnershipRules");
+        appliedAfterDown.Should().NotContain("20261126000001_AddSystemEmailConfig");
+        appliedAfterDown.Should().NotContain("20261126000002_AddAdminNotifications");
+        appliedAfterDown.Should().NotContain("20261126000003_AddPlatformInvitations");
+
+        await migrator.MigrateAsync();
+        var appliedAfterUp = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+        appliedAfterUp.Should().Contain("20261125000002_AddAppUsersAndOwnershipRules");
+        appliedAfterUp.Should().Contain("20261126000001_AddSystemEmailConfig");
+        appliedAfterUp.Should().Contain("20261126000002_AddAdminNotifications");
+        appliedAfterUp.Should().Contain("20261126000003_AddPlatformInvitations");
+
+        await DatabaseInitializer.SeedCatalogsAsync(db);
+    }
+
+    [Fact]
+    public async Task IT_API_14_RoleAndOwnershipRules_GuestVsUserVsOwnerVsAdmin()
+    {
+        // 1. Invitado anónimo (Guest) crea una casa -> NO es owner, solo 'member' y GlobalRole='Guest'
+        using var anon = fixture.CreateClientWithToken();
+        var anonCreated = await (await anon.PostAsJsonAsync("/api/v1/houses", new CreateHouseRequest("Casa Guest")))
+            .Content.ReadFromJsonAsync<CreateHouseResponse>();
+        var houseAnonId = anonCreated!.House.Id;
+
+        using var guest1 = fixture.CreateClientWithToken(anonCreated.DeviceToken);
+        var guestMe = await guest1.GetFromJsonAsync<MeResponse>("/api/v1/me");
+        guestMe!.GlobalRole.Should().Be("Guest");
+        guestMe.IsAuthenticated.Should().BeFalse();
+        guestMe.IsAdmin.Should().BeFalse();
+        guestMe.EffectiveRoles.Should().Equal("Guest");
+        guestMe.Houses.Should().ContainSingle(h => h.HouseId == houseAnonId && h.HouseRole == "member");
+
+        // Invitación generada en casa Guest -> otro Guest se une como 'member'
+        var inv1 = await (await guest1.PostAsync($"/api/v1/houses/{houseAnonId}/invitations", null))
+            .Content.ReadFromJsonAsync<InvitationResponse>();
+        using var guest2Anon = fixture.CreateClientWithToken();
+        var guest2Joined = await (await guest2Anon.PostAsync($"/api/v1/invitations/{inv1!.Token}/join", null))
+            .Content.ReadFromJsonAsync<JoinInvitationResponse>();
+        using var guest2 = fixture.CreateClientWithToken(guest2Joined!.DeviceToken);
+
+        // El primer Guest se registra (User) y reclama la casa -> deja de ser Guest y queda como Owner
+        var user1Jwt = fixture.IssueZitadelJwt("registered-first", roles: ["User"], displayName: "Usuario Uno");
+        using var user1 = fixture.CreateClientWithToken(user1Jwt);
+        await user1.PostAsJsonAsync("/api/v1/houses/claim", new ClaimHouseRequest(anonCreated.DeviceToken));
+        var user1Me = await user1.GetFromJsonAsync<MeResponse>("/api/v1/me");
+        user1Me!.GlobalRole.Should().Be("User");
+        user1Me.IsAuthenticated.Should().BeTrue();
+        user1Me.EffectiveRoles.Should().Contain("User").And.Contain("Owner");
+        user1Me.Houses.Should().ContainSingle(h => h.HouseId == houseAnonId && h.HouseRole == "owner");
+
+        // El segundo Guest se registra después -> pasa a User pero queda como 'member' (ya existe Owner)
+        var user2Jwt = fixture.IssueZitadelJwt("registered-second", roles: ["User"]);
+        using var user2 = fixture.CreateClientWithToken(user2Jwt);
+        await user2.PostAsJsonAsync("/api/v1/houses/claim", new ClaimHouseRequest(guest2Joined.DeviceToken));
+        var user2Me = await user2.GetFromJsonAsync<MeResponse>("/api/v1/me");
+        user2Me!.Houses.Should().ContainSingle(h => h.HouseId == houseAnonId && h.HouseRole == "member");
+
+        // Casa Guest (sin usuarios registrados) invita a un User ya registrado -> al canjear queda como Owner
+        using var anonOther = fixture.CreateClientWithToken();
+        var anonHouse2 = await (await anonOther.PostAsJsonAsync("/api/v1/houses", new CreateHouseRequest("Casa Sin User")))
+            .Content.ReadFromJsonAsync<CreateHouseResponse>();
+        using var guestOwnerless = fixture.CreateClientWithToken(anonHouse2!.DeviceToken);
+        var inv2 = await (await guestOwnerless.PostAsync($"/api/v1/houses/{anonHouse2.House.Id}/invitations", null))
+            .Content.ReadFromJsonAsync<InvitationResponse>();
+
+        var user3Jwt = fixture.IssueZitadelJwt("registered-invited", roles: ["User"]);
+        using var user3 = fixture.CreateClientWithToken(user3Jwt);
+        (await user3.PostAsync($"/api/v1/invitations/{inv2!.Token}/join", null)).EnsureSuccessStatusCode();
+        var user3Me = await user3.GetFromJsonAsync<MeResponse>("/api/v1/me");
+        user3Me!.Houses.Should().ContainSingle(h => h.HouseId == anonHouse2.House.Id && h.HouseRole == "owner");
+
+        // Un User normal recibe 403 al intentar acceder al panel /api/v1/admin/*
+        var forbiddenResp = await user1.GetAsync("/api/v1/admin/houses");
+        forbiddenResp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task IT_API_15_AdminPanelEndpoints_ShouldManageHousesUsersBlockingAndGroupedItems()
+    {
+        var userJwt = fixture.IssueZitadelJwt("owner-user", roles: ["User"], displayName: "Dueño Casa");
+        using var userClient = fixture.CreateClientWithToken(userJwt);
+
+        var h1 = (await (await userClient.PostAsJsonAsync("/api/v1/houses", new CreateHouseRequest("Casa Norte")))
+            .Content.ReadFromJsonAsync<CreateHouseResponse>())!.House;
+        var h2 = (await (await userClient.PostAsJsonAsync("/api/v1/houses", new CreateHouseRequest("Casa Sur")))
+            .Content.ReadFromJsonAsync<CreateHouseResponse>())!.House;
+
+        var types = await userClient.GetFromJsonAsync<List<ProductTypeDto>>($"/api/v1/houses/{h1.Id}/product-types");
+        var dairyTypeId = types!.First(t => t.Name == "Lacteos").Id;
+        var fruitTypeId = types!.First(t => t.Name == "Fruta/Verdura").Id;
+
+        // Añadir mismo término exacto (case-insensitive) y mismo tipo en 2 casas -> "2 casas"
+        await userClient.PostAsJsonAsync($"/api/v1/houses/{h1.Id}/list/items",
+            new AddListItemRequest(null, "Leche", dairyTypeId, "L"));
+        await userClient.PostAsJsonAsync($"/api/v1/houses/{h2.Id}/list/items",
+            new AddListItemRequest(null, "leche", dairyTypeId, "L"));
+        // Término distinto por tipo
+        await userClient.PostAsJsonAsync($"/api/v1/houses/{h1.Id}/list/items",
+            new AddListItemRequest(null, "Piña", fruitTypeId, "Ud"));
+
+        var listItem = await (await userClient.PostAsJsonAsync($"/api/v1/houses/{h1.Id}/list/items",
+            new AddListItemRequest(null, "Arroz", null, "Kg"))).Content.ReadFromJsonAsync<ShoppingListItemDto>();
+        await userClient.PostAsync($"/api/v1/houses/{h1.Id}/list/items/{listItem!.Id}/move-to-basket", null);
+
+        // Login como Admin (seed email o rol Admin)
+        var adminJwt = fixture.IssueZitadelJwt(
+            "admin-jonathan",
+            roles: ["User", "Admin"],
+            email: "jonathanvivero@gmail.com",
+            displayName: "Jonathan Vivero");
+        using var adminClient = fixture.CreateClientWithToken(adminJwt);
+
+        var houses = await adminClient.GetFromJsonAsync<List<AdminHouseSummaryDto>>("/api/v1/admin/houses");
+        houses.Should().HaveCount(2);
+
+        var detailH1 = await adminClient.GetFromJsonAsync<AdminHouseDetailDto>($"/api/v1/admin/houses/{h1.Id}");
+        detailH1!.Members.Should().ContainSingle(m => m.HouseRole == "owner");
+        detailH1.TotalProductsCount.Should().Be(3);
+        detailH1.ListItems.Should().HaveCount(2);
+        detailH1.BasketItems.Should().ContainSingle(b => b.Name == "Arroz");
+
+        // Listado global de ítems agrupado + ordenado alfabéticamente + filtro texto
+        var allItems = await adminClient.GetFromJsonAsync<List<AdminCatalogItemDto>>("/api/v1/admin/items");
+        allItems!.Select(i => i.Name).Should().BeInAscendingOrder(StringComparer.OrdinalIgnoreCase);
+        allItems.Should().ContainSingle(i =>
+            i.Name.Equals("leche", StringComparison.OrdinalIgnoreCase) &&
+            i.HouseCount == 2 &&
+            i.LocationLabel == "2 casas");
+        allItems.Should().ContainSingle(i =>
+            i.Name == "Piña" &&
+            i.HouseCount == 1 &&
+            i.LocationLabel == "Casa Norte");
+
+        var filtered = await adminClient.GetFromJsonAsync<List<AdminCatalogItemDto>>("/api/v1/admin/items?q=piña");
+        filtered.Should().ContainSingle(i => i.Name == "Piña");
+
+        // Edición de usuario y bloqueo inmediato
+        var users = await adminClient.GetFromJsonAsync<List<AdminUserSummaryDto>>("/api/v1/admin/users");
+        var ownerUser = users!.Single(u => u.ZitadelUserId == "owner-user");
+
+        var updateResp = await adminClient.PutAsJsonAsync($"/api/v1/admin/users/{ownerUser.Id}",
+            new AdminUpdateUserRequest(
+                "Blocked",
+                false,
+                "Dueño Editado",
+                new Dictionary<string, string> { ["nota"] = "Prueba BD" },
+                [new AdminUserHouseRoleUpdate(h1.Id, true)]));
+        updateResp.EnsureSuccessStatusCode();
+        var updatedUser = await updateResp.Content.ReadFromJsonAsync<AdminUserDetailDto>();
+        updatedUser!.Status.Should().Be("Blocked");
+        updatedUser.CustomProperties["nota"].Should().Be("Prueba BD");
+
+        // El usuario bloqueado ya no puede acceder a sus endpoints -> 403 USER_BLOCKED
+        var blockedCall = await userClient.GetAsync("/api/v1/houses");
+        blockedCall.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task IT_API_16_SmtpEmailConfig_ShouldPersistProtectAndSendTestEmail()
+    {
+        var userJwt = fixture.IssueZitadelJwt("normal-user-smtp", roles: ["User"]);
+        using var userClient = fixture.CreateClientWithToken(userJwt);
+        (await userClient.GetAsync("/api/v1/admin/settings/email")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var adminJwt = fixture.IssueZitadelJwt("admin-smtp", roles: ["User", "Admin"], email: "jonathanvivero@gmail.com");
+        using var adminClient = fixture.CreateClientWithToken(adminJwt);
+
+        var emptyCfg = await adminClient.GetFromJsonAsync<EmailConfigDto>("/api/v1/admin/settings/email");
+        emptyCfg!.IsConfigured.Should().BeFalse();
+
+        // Guardar SMTP con contraseña
+        var saveResp = await adminClient.PutAsJsonAsync("/api/v1/admin/settings/email",
+            new SaveEmailConfigRequest(
+                "smtp.example.org",
+                587,
+                "smtp-user",
+                "SuperSecretSmtpPass!",
+                false,
+                "StartTls",
+                "noreply@babasketet.test",
+                "Babasketet Mailer",
+                true));
+        saveResp.EnsureSuccessStatusCode();
+        var saved = await saveResp.Content.ReadFromJsonAsync<EmailConfigDto>();
+        saved!.IsConfigured.Should().BeTrue();
+        saved.Host.Should().Be("smtp.example.org");
+        saved.Port.Should().Be(587);
+        saved.HasPassword.Should().BeTrue();
+
+        // Actualizar sin enviar contraseña conserva la contraseña cifrada en BD
+        var updateResp = await adminClient.PutAsJsonAsync("/api/v1/admin/settings/email",
+            new SaveEmailConfigRequest(
+                "smtp2.example.org",
+                2525,
+                "smtp-user",
+                null,
+                false,
+                "None",
+                "noreply@babasketet.test",
+                "Babasketet Mailer 2",
+                true));
+        updateResp.EnsureSuccessStatusCode();
+        (await updateResp.Content.ReadFromJsonAsync<EmailConfigDto>())!.HasPassword.Should().BeTrue();
+
+        // Enviar correo de prueba verifica contraseña desencriptada y entrega
+        var testResp = await adminClient.PostAsJsonAsync("/api/v1/admin/settings/email/test",
+            new TestEmailRequest("destino.prueba@babasketet.test"));
+        testResp.EnsureSuccessStatusCode();
+        var testResult = await testResp.Content.ReadFromJsonAsync<TestEmailResultDto>();
+        testResult!.Success.Should().BeTrue();
+        testResult.Recipient.Should().Be("destino.prueba@babasketet.test");
+
+        fixture.FakeSmtp.SentMessages.Should().ContainSingle(m =>
+            m.ToEmail == "destino.prueba@babasketet.test" &&
+            m.Settings.Host == "smtp2.example.org" &&
+            m.Settings.Password == "SuperSecretSmtpPass!");
+    }
+
+    [Fact]
+    public async Task IT_API_17_AdminNotifications_ShouldEmailAllAdmins_Paginate10_AndTransitionStates()
+    {
+        var admin1Jwt = fixture.IssueZitadelJwt("admin-notif-1", roles: ["User", "Admin"], email: "admin1@babasketet.test");
+        var admin2Jwt = fixture.IssueZitadelJwt("admin-notif-2", roles: ["User", "Admin"], email: "admin2@babasketet.test");
+
+        using var admin1 = fixture.CreateClientWithToken(admin1Jwt);
+        using var admin2 = fixture.CreateClientWithToken(admin2Jwt);
+
+        await admin1.GetAsync("/api/v1/me");
+        await admin2.GetAsync("/api/v1/me");
+
+        // Configurar SMTP para verificar notificación por email
+        (await admin1.PutAsJsonAsync("/api/v1/admin/settings/email",
+            new SaveEmailConfigRequest("smtp.test.local", 1025, null, null, true, "None", "noreply@babasketet.test", "Babasketet", true)))
+            .EnsureSuccessStatusCode();
+
+        // Crear 12 notificaciones -> paginado de 10 en 10
+        var createdIds = new List<Guid>();
+        for (var i = 1; i <= 12; i++)
+        {
+            var resp = await admin1.PostAsJsonAsync("/api/v1/admin/notifications",
+                new CreateAdminNotificationRequest($"Alerta #{i}", $"Detalle completo de alerta {i}", "system"));
+            resp.StatusCode.Should().Be(HttpStatusCode.Created);
+            var dto = await resp.Content.ReadFromJsonAsync<AdminNotificationDto>();
+            dto!.Status.Should().Be("New");
+            dto.ReadAt.Should().BeNull();
+            dto.ArchivedAt.Should().BeNull();
+            createdIds.Add(dto.Id);
+            fixture.TimeProvider.Advance(TimeSpan.FromSeconds(1));
+        }
+
+        // Debe haber enviado email a ambos admins registrados (y seed admin)
+        fixture.FakeSmtp.SentMessages.Should().Contain(m => m.ToEmail == "admin1@babasketet.test" && m.Subject.Contains("Alerta #1"));
+        fixture.FakeSmtp.SentMessages.Should().Contain(m => m.ToEmail == "admin2@babasketet.test" && m.Subject.Contains("Alerta #1"));
+
+        var page1 = await admin1.GetFromJsonAsync<AdminNotificationsPageDto>("/api/v1/admin/notifications?status=New&page=1&pageSize=10");
+        page1!.Items.Should().HaveCount(10);
+        page1.TotalCount.Should().Be(12);
+        page1.TotalPages.Should().Be(2);
+        page1.NewCount.Should().Be(12);
+
+        var page2 = await admin1.GetFromJsonAsync<AdminNotificationsPageDto>("/api/v1/admin/notifications?status=New&page=2&pageSize=10");
+        page2!.Items.Should().HaveCount(2);
+
+        // Transiciones: New -> Read -> Archived -> New
+        var targetId = createdIds[0];
+        var readDto = await (await admin1.PatchAsJsonAsync(
+            $"/api/v1/admin/notifications/{targetId}/status",
+            new UpdateNotificationStatusRequest("Read"))).Content.ReadFromJsonAsync<AdminNotificationDto>();
+        readDto!.Status.Should().Be("Read");
+        readDto.ReadAt.Should().NotBeNull();
+        readDto.ArchivedAt.Should().BeNull();
+
+        var archivedDto = await (await admin1.PatchAsJsonAsync(
+            $"/api/v1/admin/notifications/{targetId}/status",
+            new UpdateNotificationStatusRequest("Archived"))).Content.ReadFromJsonAsync<AdminNotificationDto>();
+        archivedDto!.Status.Should().Be("Archived");
+        archivedDto.ReadAt.Should().NotBeNull();
+        archivedDto.ArchivedAt.Should().NotBeNull();
+
+        var multiFilter = await admin1.GetFromJsonAsync<AdminNotificationsPageDto>("/api/v1/admin/notifications?status=Read,Archived");
+        multiFilter!.Items.Should().ContainSingle(n => n.Id == targetId);
+
+        var backToNew = await (await admin1.PatchAsJsonAsync(
+            $"/api/v1/admin/notifications/{targetId}/status",
+            new UpdateNotificationStatusRequest("New"))).Content.ReadFromJsonAsync<AdminNotificationDto>();
+        backToNew!.Status.Should().Be("New");
+        backToNew.ReadAt.Should().BeNull();
+        backToNew.ArchivedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task IT_API_18_PlatformInvitations_ShouldCreateFilterCancelRenewReactivateAndSendEmails()
+    {
+        var userJwt = fixture.IssueZitadelJwt("normal-user-inv", roles: ["User"]);
+        using var userClient = fixture.CreateClientWithToken(userJwt);
+        (await userClient.GetAsync("/api/v1/admin/invitations")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // Registrar usuario que aparecerá luego vinculado a una invitación canjeada
+        await userClient.GetAsync("/api/v1/me");
+
+        var adminJwt = fixture.IssueZitadelJwt("admin-inv", roles: ["User", "Admin"], email: "admin.inv@babasketet.test");
+        using var adminClient = fixture.CreateClientWithToken(adminJwt);
+
+        (await adminClient.PutAsJsonAsync("/api/v1/admin/settings/email",
+            new SaveEmailConfigRequest("smtp.test.local", 1025, null, null, true, "None", "noreply@babasketet.test", "Babasketet", true)))
+            .EnsureSuccessStatusCode();
+
+        // 1. Crear invitación con expiración por defecto (+7 días)
+        var createResp = await adminClient.PostAsJsonAsync("/api/v1/admin/invitations", new CreatePlatformInvitationRequest());
+        createResp.StatusCode.Should().Be(HttpStatusCode.Created);
+        var inv1 = await createResp.Content.ReadFromJsonAsync<PlatformInvitationDto>();
+        inv1!.Code.Should().StartWith("BBK-");
+        inv1.Status.Should().Be("Active");
+        inv1.IsIndefinite.Should().BeFalse();
+        (inv1.ExpiresAt!.Value - inv1.CreatedAt).Should().BeCloseTo(TimeSpan.FromDays(7), TimeSpan.FromSeconds(2));
+
+        // 2. Enviar por email a múltiples direcciones
+        var sendResp = await adminClient.PostAsJsonAsync($"/api/v1/admin/invitations/{inv1.Id}/send-email",
+            new SendPlatformInvitationEmailsRequest(["uno@babasketet.test", "dos@babasketet.test"], "https://app.babasketet.local"));
+        sendResp.EnsureSuccessStatusCode();
+        var sendResult = await sendResp.Content.ReadFromJsonAsync<SendPlatformInvitationEmailsResultDto>();
+        sendResult!.SentCount.Should().Be(2);
+        fixture.FakeSmtp.SentMessages.Should().Contain(m => m.ToEmail == "uno@babasketet.test" && m.TextBody!.Contains($"/invitation-redeem/{inv1.Code}"));
+        fixture.FakeSmtp.SentMessages.Should().Contain(m => m.ToEmail == "dos@babasketet.test" && m.TextBody!.Contains(inv1.Code));
+
+        // 3. Renovar activa (+7 días y luego indefinida)
+        var renewResp = await adminClient.PostAsJsonAsync($"/api/v1/admin/invitations/{inv1.Id}/renew", new RenewPlatformInvitationRequest(7, false));
+        renewResp.EnsureSuccessStatusCode();
+        var renewed = await renewResp.Content.ReadFromJsonAsync<PlatformInvitationDto>();
+        (renewed!.ExpiresAt!.Value - inv1.ExpiresAt!.Value).Should().BeCloseTo(TimeSpan.FromDays(7), TimeSpan.FromSeconds(2));
+
+        var indefResp = await adminClient.PostAsJsonAsync($"/api/v1/admin/invitations/{inv1.Id}/renew", new RenewPlatformInvitationRequest(0, true));
+        indefResp.EnsureSuccessStatusCode();
+        (await indefResp.Content.ReadFromJsonAsync<PlatformInvitationDto>())!.IsIndefinite.Should().BeTrue();
+
+        // 4. Crear 2ª invitación, dejarla expirar -> NO se puede renovar, SI reactivar (+15 días desde reactivación)
+        var inv2 = await (await adminClient.PostAsJsonAsync("/api/v1/admin/invitations",
+            new CreatePlatformInvitationRequest(fixture.TimeProvider.GetUtcNow().AddHours(2), false)))
+            .Content.ReadFromJsonAsync<PlatformInvitationDto>();
+        fixture.TimeProvider.Advance(TimeSpan.FromHours(3));
+
+        var expiredList = await adminClient.GetFromJsonAsync<List<PlatformInvitationDto>>("/api/v1/admin/invitations?dateRange=24h&statuses=Expired");
+        expiredList.Should().ContainSingle(x => x.Id == inv2!.Id && x.Status == "Expired");
+
+        var failRenew = await adminClient.PostAsJsonAsync($"/api/v1/admin/invitations/{inv2!.Id}/renew", new RenewPlatformInvitationRequest(7, false));
+        failRenew.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var reactivated = await (await adminClient.PostAsJsonAsync($"/api/v1/admin/invitations/{inv2.Id}/reactivate", new ReactivatePlatformInvitationRequest(15)))
+            .Content.ReadFromJsonAsync<PlatformInvitationDto>();
+        reactivated!.Status.Should().Be("Active");
+        reactivated.ExpiresAt!.Value.Should().BeCloseTo(fixture.TimeProvider.GetUtcNow().AddDays(15), TimeSpan.FromSeconds(2));
+
+        // 5. Cancelar inv2 y verificar filtro Cancelled + reactivación posterior
+        var cancelled = await (await adminClient.PostAsync($"/api/v1/admin/invitations/{inv2.Id}/cancel", null))
+            .Content.ReadFromJsonAsync<PlatformInvitationDto>();
+        cancelled!.Status.Should().Be("Cancelled");
+        var cancelledList = await adminClient.GetFromJsonAsync<List<PlatformInvitationDto>>("/api/v1/admin/invitations?dateRange=all&statuses=Cancelled");
+        cancelledList.Should().ContainSingle(x => x.Id == inv2.Id);
+
+        // 6. Verificar relación RedeemedByUser en BD y filtro de fechas/canjeadas
+        using (var scope = fixture.Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BabasketetDbContext>();
+            var redeemer = await db.AppUsers.SingleAsync(u => u.ZitadelUserId == "normal-user-inv");
+            var row = await db.PlatformInvitations.SingleAsync(x => x.Id == inv1.Id);
+            row.RedeemedByUserId = redeemer.Id;
+            row.RedeemedAt = fixture.TimeProvider.GetUtcNow();
+            await db.SaveChangesAsync();
+        }
+
+        var redeemedList = await adminClient.GetFromJsonAsync<List<PlatformInvitationDto>>("/api/v1/admin/invitations?dateRange=week&statuses=Redeemed");
+        redeemedList.Should().ContainSingle(x => x.Id == inv1.Id && x.RedeemedBy != null && x.RedeemedBy.UserId != Guid.Empty);
+
+        // Con filtro 24h vs month tras avanzar 2 días: inv1 creada hace >24h no entra en 24h pero sí en month
+        fixture.TimeProvider.Advance(TimeSpan.FromDays(2));
+        var last24h = await adminClient.GetFromJsonAsync<List<PlatformInvitationDto>>("/api/v1/admin/invitations?dateRange=24h&statuses=All");
+        last24h!.Should().NotContain(x => x.Id == inv1.Id);
+        var lastMonth = await adminClient.GetFromJsonAsync<List<PlatformInvitationDto>>("/api/v1/admin/invitations?dateRange=month&statuses=All");
+        lastMonth.Should().Contain(x => x.Id == inv1.Id);
+    }
+
+    [Fact]
+    public async Task IT_API_19_PlatformInvitationRedeemAndRenewalRequest_ShouldNotifyAdminsAndLinkUser()
+    {
+        var adminJwt = fixture.IssueZitadelJwt("admin-redeem", roles: ["User", "Admin"], email: "admin.redeem@babasketet.test");
+        using var adminClient = fixture.CreateClientWithToken(adminJwt);
+        await adminClient.GetAsync("/api/v1/me");
+
+        (await adminClient.PutAsJsonAsync("/api/v1/admin/settings/email",
+            new SaveEmailConfigRequest("smtp.test.local", 1025, null, null, true, "None", "noreply@babasketet.test", "Babasketet", true)))
+            .EnsureSuccessStatusCode();
+
+        // 1. Crear invitación activa e invitación que expirará en 1 hora
+        var activeInv = await (await adminClient.PostAsJsonAsync("/api/v1/admin/invitations",
+            new CreatePlatformInvitationRequest())).Content.ReadFromJsonAsync<PlatformInvitationDto>();
+        var shortInv = await (await adminClient.PostAsJsonAsync("/api/v1/admin/invitations",
+            new CreatePlatformInvitationRequest(fixture.TimeProvider.GetUtcNow().AddHours(1), false)))
+            .Content.ReadFromJsonAsync<PlatformInvitationDto>();
+
+        using var publicClient = fixture.CreateClientWithToken();
+
+        // Check público activo
+        var activeCheck = await publicClient.GetFromJsonAsync<CheckPlatformInvitationResponse>($"/api/v1/platform-invitations/{activeInv!.Code}");
+        activeCheck!.IsValid.Should().BeTrue();
+        activeCheck.CanRedeem.Should().BeTrue();
+        activeCheck.IsExpired.Should().BeFalse();
+
+        // Anónimo NO puede canjear (403)
+        var anonCreated = await (await publicClient.PostAsJsonAsync("/api/v1/houses", new CreateHouseRequest("Anon"))).Content.ReadFromJsonAsync<CreateHouseResponse>();
+        using var guestClient = fixture.CreateClientWithToken(anonCreated!.DeviceToken);
+        var guestRedeem = await guestClient.PostAsJsonAsync("/api/v1/platform-invitations/redeem", new RedeemPlatformInvitationRequest(activeInv.Code));
+        guestRedeem.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // Usuario registrado canjea -> vincula RedeemedByUserId y pasa a Redeemed
+        var newUserJwt = fixture.IssueZitadelJwt("redeemer-user", roles: ["User"], email: "nuevo.invitado@babasketet.test", displayName: "Nuevo Invitado");
+        using var newUserClient = fixture.CreateClientWithToken(newUserJwt);
+        var redeemResp = await newUserClient.PostAsJsonAsync("/api/v1/platform-invitations/redeem", new RedeemPlatformInvitationRequest(activeInv.Code));
+        redeemResp.EnsureSuccessStatusCode();
+        var redeemedDto = await redeemResp.Content.ReadFromJsonAsync<RedeemPlatformInvitationResponse>();
+        redeemedDto!.Redeemed.Should().BeTrue();
+
+        var redeemedInAdmin = await adminClient.GetFromJsonAsync<List<PlatformInvitationDto>>("/api/v1/admin/invitations?dateRange=all&statuses=Redeemed");
+        redeemedInAdmin.Should().ContainSingle(x =>
+            x.Id == activeInv.Id &&
+            x.RedeemedBy != null &&
+            x.RedeemedBy.Email == "nuevo.invitado@babasketet.test");
+
+        // 2. Expirar la segunda invitación -> check indica IsValid && IsExpired -> solicitar renovación -> AdminNotification + email
+        fixture.TimeProvider.Advance(TimeSpan.FromHours(2));
+        var expiredCheck = await publicClient.GetFromJsonAsync<CheckPlatformInvitationResponse>($"/api/v1/platform-invitations/{shortInv!.Code}");
+        expiredCheck!.IsValid.Should().BeTrue();
+        expiredCheck.CanRedeem.Should().BeFalse();
+        expiredCheck.IsExpired.Should().BeTrue();
+
+        var renewalResp = await publicClient.PostAsJsonAsync("/api/v1/platform-invitations/request-renewal",
+            new RequestInvitationRenewalRequest(shortInv.Code, "interesado@babasketet.test", "Por favor reactivar"));
+        renewalResp.EnsureSuccessStatusCode();
+        (await renewalResp.Content.ReadFromJsonAsync<RequestInvitationRenewalResponse>())!.Sent.Should().BeTrue();
+
+        var notifs = await adminClient.GetFromJsonAsync<AdminNotificationsPageDto>("/api/v1/admin/notifications?status=New");
+        notifs!.Items.Should().Contain(n => n.Title.Contains(shortInv.Code) && n.Body.Contains("interesado@babasketet.test"));
+        fixture.FakeSmtp.SentMessages.Should().Contain(m =>
+            m.ToEmail == "admin.redeem@babasketet.test" &&
+            m.Subject.Contains(shortInv.Code));
+    }
+
+    [Fact]
+    public async Task IT_API_20_InspectHouseInvitation_ShouldReturnHouseInfoWithoutJoining_And410WhenInvalid()
+    {
+        var userJwt = fixture.IssueZitadelJwt("inspect-owner", roles: ["User"], email: "inspect.owner@babasketet.test");
+        using var ownerClient = fixture.CreateClientWithToken(userJwt);
+        var created = await (await ownerClient.PostAsJsonAsync("/api/v1/houses", new CreateHouseRequest("Casa Takeoff")))
+            .Content.ReadFromJsonAsync<CreateHouseResponse>();
+        var inv = await (await ownerClient.PostAsync($"/api/v1/houses/{created!.House.Id}/invitations", null))
+            .Content.ReadFromJsonAsync<InvitationResponse>();
+
+        using var publicClient = fixture.CreateClientWithToken();
+        var inspectOk = await publicClient.GetFromJsonAsync<InspectHouseInvitationResponse>($"/api/v1/invitations/{inv!.Token}");
+        inspectOk!.HouseId.Should().Be(created.House.Id);
+        inspectOk.HouseName.Should().Be("Casa Takeoff");
+
+        var inspectMissing = await publicClient.GetAsync("/api/v1/invitations/non-existent-token");
+        inspectMissing.StatusCode.Should().Be(HttpStatusCode.Gone);
     }
 
     private HubConnection CreateHubConnection(string token)

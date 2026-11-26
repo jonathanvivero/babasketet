@@ -34,11 +34,17 @@ lib/
 ## 2. Requisitos PWA
 
 - `web/manifest.json`:
-  - `name`: `"Babasketet"`
-  - `short_name`: `"Babasketet"`
+  - `id`: `"/"`, `start_url`: `"/"`, `scope`: `"/"`
+  - `name`: `"Babasketet"`, `short_name`: `"Babasketet"`
   - `display`: `"standalone"`
-  - `start_url`: `"/"`
-  - Iconos maskable `192x192` y `512x512`.
+  - `background_color` / `theme_color`: `"#FFB347"`
+  - Iconos (`favicon.png`, `apple-touch-icon.png`, `Icon-192.png`, `Icon-512.png`): ilustración de una piña entrando en una cesta de baloncesto con líneas negras sobre fondo naranja medio claro.
+- **Aviso de instalación en primera visita (`PwaInstallBanner`)**:
+  - `web/index.html` captura `beforeinstallprompt` antes del arranque de Flutter.
+  - En la primera visita fuera de modo `standalone`, se muestra un banner no bloqueante con opción directa de instalación nativa (Chromium/Android) o guía rápida (iOS Safari) y se recuerda la respuesta para no repetirlo tras cerrarlo.
+- **Cuenta persistente en App instalada (`standalone`)**:
+  - Botón de cuenta siempre accesible en el `AppBar` de `DashboardPage` (`account_btn`) además del menú lateral y Onboarding.
+  - En modo `standalone`, el flujo OIDC PKCE intenta abrir un popup (`window.open`) con retorno por `postMessage` en `/auth/callback` para mantener intacta la ventana instalada y su `deviceToken` local (con fallback automático a `_self` si el navegador bloquea popups).
 - **Service Worker**: Cacheo de shell de la aplicación para arranque instantáneo y funcionamiento offline básico dentro del supermercado.
 - **Contenedor Docker**: Build multi-stage (`ghcr.io/cirruslabs/flutter` → `nginx:alpine`) con `try_files $uri $uri/ /index.html;` para que cualquier deep-link como `/join/<token>` cargue directamente la PWA.
 
@@ -93,9 +99,9 @@ lib/
   - **Reordenación**: Drag & drop mediante handle o gesto de arrastre, persistiendo `PUT /list/reorder`.
   - **Swipe derecha (`Dismissible`)**: mueve el item a `Cesta` (feedback visual verde / icono carrito).
   - **Swipe izquierda (`Dismissible`)**: elimina el item de `Lista` (feedback visual rojo / papelera).
-  - **Long-press (> 2 segundos)**:
-    - Usar detector dedicado con `Timer(Duration(seconds: 2))` (el `onLongPress` nativo de Flutter dispara a los ~500 ms; debemos exigir retención continua de **2000 ms** con indicador circular sutil de progreso para cumplir la spec exacta).
-    - Abre popup con desplegable de `Tipo` (círculo color+borde + nombre) y acceso a crear un tipo personalizado (nombre, color fondo, color borde).
+  - **Long-press (800 ms)**:
+    - Usar detector dedicado con `Timer(Duration(milliseconds: 800))` (reducido en más de 1 segundo respecto a los 2000 ms iniciales, manteniendo indicador circular sutil de progreso para distinguir pulsación de tap/swipe).
+    - Abre popup donde el usuario puede **editar el nombre del item**, elegir `Tipo` (círculo color+borde + nombre) y acceder a crear un tipo personalizado (nombre, color fondo, color borde).
 
 ### 3.5 Pestaña `Cesta`
 - Muestra cada elemento movido desde `Lista`:
@@ -108,11 +114,12 @@ lib/
     - Al tocar el área de precio, abre input enfocado con `TextInputType.numberWithOptions(decimal: true)` (teclado numérico del teléfono) precargado con el último precio en memoria (o `0,00`).
     - Al confirmar, envía `PUT /basket/items/{id}/price` (actualizando histórico SCD-2 para el supermercado actual).
   - **Swipe izquierda**: devuelve el producto a la pestaña `Lista`.
-  - **Long-press (> 2 segundos)**: abre popup con:
-    1. **Eliminar** (desaparece definitivamente, no vuelve a `Lista`).
-    2. **Cambiar ud.** (input numérico directo).
-    3. **Cambiar tipo** (desplegable de tipos con círculo color+borde).
-    4. **Cambiar formato** (`Ud`, `Docena`, `Kg`, `g`, `L`, `Cl`, `Pack-2`, `Pack-3`, `Pack-4`, `Pack-6`, `Pack-8`).
+  - **Long-press (800 ms)**: abre popup con:
+    1. **Cambiar nombre** (campo de texto pre-rellenado).
+    2. **Eliminar** (desaparece definitivamente, no vuelve a `Lista`).
+    3. **Cambiar ud.** (input numérico directo).
+    4. **Cambiar tipo** (desplegable de tipos con círculo color+borde).
+    5. **Cambiar formato** (`Ud`, `Docena`, `Kg`, `g`, `L`, `Cl`, `Pack-2`, `Pack-3`, `Pack-4`, `Pack-6`, `Pack-8`).
 - **Pie fijo de la Cesta**:
   - **Total** acumulado en tiempo real (`SUM(precio * cantidad)`).
   - Botón **"Efectuar Compra"** → diálogo de confirmación → guarda en `Compras` y vacía la `Cesta`.
@@ -124,15 +131,28 @@ lib/
   - **Establecer / editar Total manual**: teclado numérico para ajustar el importe real del ticket.
   - **Adjuntar foto del ticket**: botón visible con icono de candado (**Locked — Solo versión Premium**); al pulsar muestra modal informativo de función Premium sin romper el flujo.
 
+### 3.7 Panel de Administración (`/admin-bo`)
+- Accesible exclusivamente para usuarios autenticados con rol global `Admin` desde `/admin-bo` (enlace en Drawer y Onboarding cuando `isAdmin == true`).
+- Tres vistas principales:
+  - **Casas**: listado con conteos y vista de detalle (miembros con roles/estado, ítems totales, Lista actual, Cesta actual, Compras e ítems).
+  - **Usuarios**: listado y editor completo (Estado `Activo|Bloqueado`, rol `Guest|User|Owner|Admin`, indicador autenticado/anónimo, propiedades clave-valor en BD y casas con asignación de `Owner`).
+  - **Ítems**: listado alfabético con filtro de texto y agrupación multi-casa (`"N casas"` cuando mismo texto case-insensitive y mismo tipo coinciden en más de una casa).
+  - **Configuraciones → Correo Electrónico Saliente**: configuración SMTP (servidor, puerto, seguridad `StartTls`/`SslTls`/`None`/`Auto`, cuenta, contraseña protegida, remitente) con persistencia en BD y botón de prueba de envío.
+  - **Invitaciones**: alta de invitaciones de plataforma con código único y caducidad por defecto +7 días editable/indefinida, botones para copiar URL (`/invitation-redeem/{code}`), compartir por WhatsApp y envío multi-destinatario (TextArea de emails), listado con filtros de fecha y estado, relación al usuario canjeador, cancelar, renovar (`+1/7/15/30d` / indefinida si no expiró) y reactivar (`1/7/15/30d`).
+  - **Canje de Invitación (`/invitation-redeem` y `/invitation-redeem/:code`)**: solicita o valida código; si es válido y activo dirige al registro en WillIAM y canjea automáticamente al volver pasando a `/onboarding` ("Crear Casa o unirte a una"); si expiró permite solicitar renovación (notificación + correo a admins) y regresa al prompt del código.
+  - **Takeoff de Unión a Casa (`/join/:token`)**: valida el enlace y pregunta al usuario no autenticado si prefiere **Registrarme ahora**, **Introducir credenciales** (WillIAM) o **Continuar como invitado** (con registro posterior disponible).
+  - **Notificaciones (tercio derecho del dashboard principal)**: listado paginado de 10 en 10, filtro por defecto `Nuevas` (`Todas`, `Nuevas`, `Leídas`, `Archivadas`), acciones rápidas de estado y apertura en popup con marcado automático como `Leída` y navegación `Anterior` / `Siguiente`.
+
 ---
 
 ## 4. Contrato de Semántica para Playwright
 
 Todos los elementos críticos deben envolverse en `Semantics(identifier: '...')` con nombres estables:
-- `onboarding_create_house_btn`, `onboarding_house_name_input`
+- `onboarding_create_house_btn`, `onboarding_house_name_input`, `onboarding_admin_bo_btn`
 - `tab_lista`, `tab_cesta`, `tab_compras`
 - `store_selector_btn`, `list_input_field`, `list_add_btn`, `list_history_btn`, `list_fab_plus`
 - `list_item_<normalized_name>`, `basket_item_<normalized_name>`, `basket_qty_<normalized_name>`, `basket_price_<normalized_name>`
 - `basket_total_label`, `basket_checkout_btn`, `confirm_checkout_btn`
 - `purchase_receipt_locked_btn`
 - `auth_dial_wheel`, `auth_dial_option_<provider>`
+- `admin_login_btn`, `admin_tab_houses`, `admin_tab_users`, `admin_tab_items`, `admin_user_editor`, `admin_user_save_btn`, `admin_items_search_input`
