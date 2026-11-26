@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using Babasketet.API.Application;
 using Babasketet.API.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
@@ -25,6 +26,7 @@ public sealed class BabasketetApiFixture : IAsyncLifetime
 
     public string ConnectionString { get; private set; } = string.Empty;
     public FakeTimeProvider TimeProvider { get; } = new(new DateTimeOffset(2026, 11, 24, 12, 0, 0, TimeSpan.Zero));
+    public FakeSmtpDeliveryClient FakeSmtp { get; } = new();
     public WebApplicationFactory<Program> Factory { get; private set; } = null!;
 
     public BabasketetApiFixture()
@@ -64,6 +66,8 @@ public sealed class BabasketetApiFixture : IAsyncLifetime
                 {
                     services.RemoveAll<TimeProvider>();
                     services.AddSingleton<TimeProvider>(TimeProvider);
+                    services.RemoveAll<ISmtpDeliveryClient>();
+                    services.AddSingleton<ISmtpDeliveryClient>(FakeSmtp);
 
                     services.PostConfigure<JwtBearerOptions>("ZitadelBearer", options =>
                     {
@@ -144,10 +148,12 @@ public sealed class BabasketetApiFixture : IAsyncLifetime
         await db.Database.ExecuteSqlRawAsync("""
             TRUNCATE TABLE purchase_items, purchases, product_price_history,
                            basket_items, shopping_list_items, products,
-                           house_invitations, house_members, houses, app_users RESTART IDENTITY CASCADE;
+                           house_invitations, house_members, houses, app_users,
+                           system_email_configs RESTART IDENTITY CASCADE;
             DELETE FROM stores WHERE is_system = FALSE;
             DELETE FROM product_types WHERE is_system = FALSE;
             """);
+        FakeSmtp.SentMessages.Clear();
         await DatabaseInitializer.SeedCatalogsAsync(db);
     }
 
@@ -166,4 +172,28 @@ public sealed class FakeTimeProvider(DateTimeOffset start) : TimeProvider
     private DateTimeOffset _utcNow = start;
     public override DateTimeOffset GetUtcNow() => _utcNow;
     public void Advance(TimeSpan delta) => _utcNow = _utcNow.Add(delta);
+}
+
+public sealed record CapturedSmtpMessage(
+    OutboundEmailSettings Settings,
+    string ToEmail,
+    string Subject,
+    string HtmlBody,
+    string? TextBody);
+
+public sealed class FakeSmtpDeliveryClient : ISmtpDeliveryClient
+{
+    public List<CapturedSmtpMessage> SentMessages { get; } = [];
+
+    public Task SendAsync(
+        OutboundEmailSettings settings,
+        string toEmail,
+        string subject,
+        string htmlBody,
+        string? textBody,
+        CancellationToken ct = default)
+    {
+        SentMessages.Add(new CapturedSmtpMessage(settings, toEmail, subject, htmlBody, textBody));
+        return Task.CompletedTask;
+    }
 }

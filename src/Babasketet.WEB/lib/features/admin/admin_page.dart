@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/models/models.dart';
 import '../../core/widgets/long_press_and_dot.dart';
 import '../houses/house_providers.dart';
+import 'admin_settings_section.dart';
 
 class AdminBackofficePage extends ConsumerStatefulWidget {
   const AdminBackofficePage({super.key});
@@ -281,6 +282,7 @@ class _AdminBackofficePageState extends ConsumerState<AdminBackofficePage> {
               _navChip(0, Icons.home_work_rounded, 'Casas (${_houses.length})', 'admin_tab_houses'),
               _navChip(1, Icons.people_alt_rounded, 'Usuarios (${_users.length})', 'admin_tab_users'),
               _navChip(2, Icons.inventory_2_rounded, 'Ítems (${_items.length})', 'admin_tab_items'),
+              _navChip(3, Icons.settings_rounded, 'Configuraciones', 'admin_tab_settings'),
               const SizedBox(width: 8),
               Chip(
                 avatar: const Icon(Icons.verified_user_rounded, size: 16),
@@ -334,11 +336,12 @@ class _AdminBackofficePageState extends ConsumerState<AdminBackofficePage> {
                     users: _users,
                     onSelect: (u) => _openUserDetail(u.id),
                   ),
-            _ => _ItemsListView(
+            2 => _ItemsListView(
                 items: _items,
                 controller: _itemSearchCtrl,
                 onSearchChanged: _searchItems,
               ),
+            _ => AdminSettingsSection(adminEmail: me.email),
           },
         ),
       ],

@@ -52,6 +52,7 @@ La pirámide de testing de **Babasketet** garantiza que cada regla de dominio, r
 | `IT-API-13` | **Migraciones Reversibles EF Core** | Comprueba `!HasPendingModelChanges()` y ejecuta `Down` a baseline + `Up` a `AddAppUsersAndOwnershipRules` en PostgreSQL real. |
 | `IT-API-14` | **Gobernanza de Roles (`Guest`/`User`/`Owner`/`Admin`)** | Valida que un `Guest` nunca es `Owner`, que al registrarse/reclamar o canjear invitación en casa sin usuarios pasa a `Owner` el primero, y que un `User` recibe `403` en `/api/v1/admin/*`. |
 | `IT-API-15` | **Endpoints `/api/v1/admin/*` y Bloqueo** | Valida listado/detalle de casas, edición y bloqueo inmediato de usuarios (`403 USER_BLOCKED`), y listado alfabético de ítems agrupado (`"2 casas"`). |
+| `IT-API-16` | **Configuración SMTP y Email de Prueba** | Valida persistencia en BD de configuración SMTP, conservación/cifrado de contraseña y envío de prueba vía `ISmtpDeliveryClient`. |
 
 ---
 

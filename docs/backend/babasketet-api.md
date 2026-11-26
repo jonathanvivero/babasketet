@@ -52,6 +52,7 @@ erDiagram
 | :--- | :--- | :--- |
 | `houses` | `id (uuid PK)`, `name (varchar 100)`, `active_store_id (uuid FK)`, `created_at`, `updated_at` | Nombre obligatorio (1..100 chars). |
 | `app_users` | `id (uuid PK)`, `zitadel_user_id (varchar 128 nullable)`, `device_id (uuid nullable)`, `global_role (Guest/User)`, `is_admin (bool)`, `status (Active/Blocked)`, `email`, `display_name`, `auth_method`, `custom_properties_json`, `created_at`, `last_seen_at` | Índices únicos filtrados en `zitadel_user_id` y `device_id`. `Guest` no puede ser `Admin` ni tener `zitadel_user_id`. Migraciones EF Core reversibles en `Migrations/`. |
+| `system_email_configs` | `id (uuid PK)`, `host`, `port (1..65535)`, `username`, `encrypted_password`, `security_mode`, `from_email`, `from_name`, `enabled`, `updated_at` | Configuración SMTP saliente persistida en BD con contraseña cifrada (`IDataProtectionProvider`). |
 | `house_members` | `id (uuid PK)`, `house_id (FK)`, `user_id (varchar 128 nullable)`, `device_id (uuid nullable)`, `role (owner/member)`, `joined_at` | `CHECK (user_id IS NOT NULL OR device_id IS NOT NULL)`, `CHECK (role <> 'owner' OR user_id IS NOT NULL)` y `ux_house_members_single_owner` (solo 1 `owner` por casa y únicamente `User`). Un `device_id` anónimo solo puede tener **1** fila activa; un `user_id` registrado hasta **4**. |
 | `house_invitations` | `id (uuid PK)`, `house_id (FK)`, `token_hash (char 64 UNIQUE)`, `created_at`, `expires_at`, `revoked_at` | `expires_at = created_at + interval '1 hour'`. Permite múltiples usos durante esa hora (para enviar a varios dispositivos/familiares) salvo revocación explícita. |
 | `stores` | `id (uuid PK)`, `house_id (uuid nullable FK)`, `name (varchar 80)`, `icon_key (varchar 64)`, `is_default (bool)`, `is_system (bool)` | `house_id IS NULL` → catálogo semilla global (las 24 tiendas ES/PT). `house_id IS NOT NULL` → tienda personalizada de esa casa. |
@@ -179,6 +180,9 @@ WHERE product_id = @productId
 | `GET` | `/api/v1/admin/users/{userId}` | Detalle de usuario con estado, autenticación, propiedades en BD y casas. |
 | `PUT` | `/api/v1/admin/users/{userId}` | Edición de estado (`Active`/`Blocked`), rol `Admin`, `Owner` por casa, nombre y propiedades clave-valor en BD. |
 | `GET` | `/api/v1/admin/items?q=...` | Catálogo global de ítems ordenados alfabéticamente, con tipo, filtro de texto y agrupación multi-casa (`"N casas"` si coincide texto case-insensitive y tipo). |
+| `GET` | `/api/v1/admin/settings/email` | Devuelve la configuración SMTP saliente guardada en BD (sin exponer la contraseña en claro). |
+| `PUT` | `/api/v1/admin/settings/email` | Guarda o actualiza la configuración SMTP saliente cifrando la contraseña en reposo. |
+| `POST` | `/api/v1/admin/settings/email/test` | Envía un correo electrónico de prueba real mediante SMTP (`MailKit`) al destinatario indicado. |
 
 ---
 

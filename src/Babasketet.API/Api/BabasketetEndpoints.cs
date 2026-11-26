@@ -166,6 +166,15 @@ public static class BabasketetEndpoints
         admin.MapGet("/items", async (string? q, HttpContext http, AdminService svc, CancellationToken ct) =>
             Results.Ok(await svc.GetItemsAsync(q, ExtractBearer(http), ct)));
 
+        admin.MapGet("/settings/email", async (HttpContext http, EmailService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetConfigForAdminAsync(ExtractBearer(http), ct)));
+
+        admin.MapPut("/settings/email", async (SaveEmailConfigRequest req, HttpContext http, EmailService svc, CancellationToken ct) =>
+            Results.Ok(await svc.SaveConfigForAdminAsync(req, ExtractBearer(http), ct)));
+
+        admin.MapPost("/settings/email/test", async (TestEmailRequest req, HttpContext http, EmailService svc, CancellationToken ct) =>
+            Results.Ok(await svc.SendTestEmailForAdminAsync(req, ExtractBearer(http), ct)));
+
         app.MapHub<HouseHub>("/hubs/house");
 
         return app;

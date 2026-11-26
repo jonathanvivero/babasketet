@@ -194,3 +194,6 @@ Proporcionar un backoffice en `/admin-bo` exclusivo del rol `Admin` junto con el
 - **AC-F8.3 (Casas, Usuarios e Ítems en `/admin-bo`)**:
   - *Given* un usuario `Admin` autenticado en `/admin-bo`
   - *Then* consulta casas y detalle de casa (usuarios, ítems totales, Lista, Cesta, compras con ítems), lista y edita usuarios (estado `Activo|Bloqueado`, rol, estado autenticado, propiedades en BD, casas), y consulta el listado alfabético y filtrable de ítems mostrando `"N casas"` cuando coinciden texto (case-insensitive) y tipo en varias casas.
+- **AC-F8.4 (Configuraciones del sistema → Correo Electrónico Saliente)**:
+  - *Given* un usuario `Admin` en `Configuraciones → Correo Electrónico Saliente`
+  - *Then* puede configurar servidor SMTP, puerto, usuario, contraseña, cifrado y remitente, persistir la configuración en PostgreSQL y enviar un email de prueba desde la interfaz.

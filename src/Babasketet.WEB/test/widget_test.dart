@@ -28,6 +28,58 @@ class _FakeAdminApiClient extends BabasketetApiClient {
   @override
   Future<List<AdminCatalogItemDto>> adminGetItems({String? query}) async =>
       const [];
+
+  EmailConfigDto _emailConfig = const EmailConfigDto(
+    isConfigured: true,
+    host: 'mailpit',
+    port: 1025,
+    hasPassword: false,
+    securityMode: 'None',
+    fromEmail: 'noreply@babasketet.local',
+    fromName: 'Babasketet',
+    enabled: true,
+  );
+
+  @override
+  Future<EmailConfigDto> adminGetEmailConfig() async => _emailConfig;
+
+  @override
+  Future<EmailConfigDto> adminSaveEmailConfig({
+    required String host,
+    required int port,
+    String? username,
+    String? password,
+    bool clearPassword = false,
+    required String securityMode,
+    required String fromEmail,
+    String? fromName,
+    required bool enabled,
+  }) async {
+    _emailConfig = EmailConfigDto(
+      isConfigured: true,
+      host: host,
+      port: port,
+      username: username,
+      hasPassword: !clearPassword && (password?.isNotEmpty == true || _emailConfig.hasPassword),
+      securityMode: securityMode,
+      fromEmail: fromEmail,
+      fromName: fromName ?? 'Babasketet',
+      enabled: enabled,
+    );
+    return _emailConfig;
+  }
+
+  @override
+  Future<TestEmailResultDto> adminSendTestEmail({
+    String? toEmail,
+    Map<String, dynamic>? overrideConfig,
+  }) async =>
+      TestEmailResultDto(
+        success: true,
+        recipient: toEmail ?? 'admin@babasketet.test',
+        message: 'Correo de prueba enviado correctamente.',
+        sentAt: DateTime(2026, 11, 26),
+      );
 }
 
 void main() {
@@ -179,5 +231,15 @@ void main() {
     expect(find.text('Casas (0)'), findsOneWidget);
     expect(find.text('Usuarios (0)'), findsOneWidget);
     expect(find.text('Ítems (0)'), findsOneWidget);
+    expect(find.text('Configuraciones'), findsOneWidget);
+
+    await tester.tap(find.text('Configuraciones'));
+    await tester.pumpAndSettle();
+    expect(find.text('Configuraciones del sistema'), findsOneWidget);
+    expect(find.text('Correo Electrónico Saliente'), findsOneWidget);
+    expect(find.text('Guardar configuración SMTP'), findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, -450));
+    await tester.pumpAndSettle();
+    expect(find.text('Enviar email de prueba'), findsOneWidget);
   });
 }

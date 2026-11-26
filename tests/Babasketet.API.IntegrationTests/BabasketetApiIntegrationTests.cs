@@ -306,10 +306,12 @@ public sealed class BabasketetApiIntegrationTests(BabasketetApiFixture fixture)
         var appliedAfterDown = (await db.Database.GetAppliedMigrationsAsync()).ToList();
         appliedAfterDown.Should().Contain("20261125000001_InitialBaseline");
         appliedAfterDown.Should().NotContain("20261125000002_AddAppUsersAndOwnershipRules");
+        appliedAfterDown.Should().NotContain("20261126000001_AddSystemEmailConfig");
 
-        await migrator.MigrateAsync("20261125000002_AddAppUsersAndOwnershipRules");
+        await migrator.MigrateAsync("20261126000001_AddSystemEmailConfig");
         var appliedAfterUp = (await db.Database.GetAppliedMigrationsAsync()).ToList();
         appliedAfterUp.Should().Contain("20261125000002_AddAppUsersAndOwnershipRules");
+        appliedAfterUp.Should().Contain("20261126000001_AddSystemEmailConfig");
 
         await DatabaseInitializer.SeedCatalogsAsync(db);
     }
@@ -454,6 +456,67 @@ public sealed class BabasketetApiIntegrationTests(BabasketetApiFixture fixture)
         // El usuario bloqueado ya no puede acceder a sus endpoints -> 403 USER_BLOCKED
         var blockedCall = await userClient.GetAsync("/api/v1/houses");
         blockedCall.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task IT_API_16_SmtpEmailConfig_ShouldPersistProtectAndSendTestEmail()
+    {
+        var userJwt = fixture.IssueZitadelJwt("normal-user-smtp", roles: ["User"]);
+        using var userClient = fixture.CreateClientWithToken(userJwt);
+        (await userClient.GetAsync("/api/v1/admin/settings/email")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var adminJwt = fixture.IssueZitadelJwt("admin-smtp", roles: ["User", "Admin"], email: "jonathanvivero@gmail.com");
+        using var adminClient = fixture.CreateClientWithToken(adminJwt);
+
+        var emptyCfg = await adminClient.GetFromJsonAsync<EmailConfigDto>("/api/v1/admin/settings/email");
+        emptyCfg!.IsConfigured.Should().BeFalse();
+
+        // Guardar SMTP con contraseña
+        var saveResp = await adminClient.PutAsJsonAsync("/api/v1/admin/settings/email",
+            new SaveEmailConfigRequest(
+                "smtp.example.org",
+                587,
+                "smtp-user",
+                "SuperSecretSmtpPass!",
+                false,
+                "StartTls",
+                "noreply@babasketet.test",
+                "Babasketet Mailer",
+                true));
+        saveResp.EnsureSuccessStatusCode();
+        var saved = await saveResp.Content.ReadFromJsonAsync<EmailConfigDto>();
+        saved!.IsConfigured.Should().BeTrue();
+        saved.Host.Should().Be("smtp.example.org");
+        saved.Port.Should().Be(587);
+        saved.HasPassword.Should().BeTrue();
+
+        // Actualizar sin enviar contraseña conserva la contraseña cifrada en BD
+        var updateResp = await adminClient.PutAsJsonAsync("/api/v1/admin/settings/email",
+            new SaveEmailConfigRequest(
+                "smtp2.example.org",
+                2525,
+                "smtp-user",
+                null,
+                false,
+                "None",
+                "noreply@babasketet.test",
+                "Babasketet Mailer 2",
+                true));
+        updateResp.EnsureSuccessStatusCode();
+        (await updateResp.Content.ReadFromJsonAsync<EmailConfigDto>())!.HasPassword.Should().BeTrue();
+
+        // Enviar correo de prueba verifica contraseña desencriptada y entrega
+        var testResp = await adminClient.PostAsJsonAsync("/api/v1/admin/settings/email/test",
+            new TestEmailRequest("destino.prueba@babasketet.test"));
+        testResp.EnsureSuccessStatusCode();
+        var testResult = await testResp.Content.ReadFromJsonAsync<TestEmailResultDto>();
+        testResult!.Success.Should().BeTrue();
+        testResult.Recipient.Should().Be("destino.prueba@babasketet.test");
+
+        fixture.FakeSmtp.SentMessages.Should().ContainSingle(m =>
+            m.ToEmail == "destino.prueba@babasketet.test" &&
+            m.Settings.Host == "smtp2.example.org" &&
+            m.Settings.Password == "SuperSecretSmtpPass!");
     }
 
     private HubConnection CreateHubConnection(string token)

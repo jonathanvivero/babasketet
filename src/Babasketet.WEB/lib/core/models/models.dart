@@ -740,3 +740,66 @@ class AdminCatalogItemDto {
         locationLabel: json['locationLabel'] as String,
       );
 }
+
+class EmailConfigDto {
+  final bool isConfigured;
+  final String host;
+  final int port;
+  final String? username;
+  final bool hasPassword;
+  final String securityMode;
+  final String fromEmail;
+  final String fromName;
+  final bool enabled;
+  final DateTime? updatedAt;
+
+  const EmailConfigDto({
+    required this.isConfigured,
+    required this.host,
+    required this.port,
+    this.username,
+    required this.hasPassword,
+    required this.securityMode,
+    required this.fromEmail,
+    required this.fromName,
+    required this.enabled,
+    this.updatedAt,
+  });
+
+  factory EmailConfigDto.fromJson(Map<String, dynamic> json) => EmailConfigDto(
+        isConfigured: (json['isConfigured'] as bool?) ?? false,
+        host: (json['host'] as String?) ?? '',
+        port: (json['port'] as int?) ?? 587,
+        username: json['username'] as String?,
+        hasPassword: (json['hasPassword'] as bool?) ?? false,
+        securityMode: (json['securityMode'] as String?) ?? 'StartTls',
+        fromEmail: (json['fromEmail'] as String?) ?? '',
+        fromName: (json['fromName'] as String?) ?? 'Babasketet',
+        enabled: (json['enabled'] as bool?) ?? true,
+        updatedAt: json['updatedAt'] != null
+            ? DateTime.parse(json['updatedAt'] as String)
+            : null,
+      );
+}
+
+class TestEmailResultDto {
+  final bool success;
+  final String recipient;
+  final String message;
+  final DateTime sentAt;
+
+  const TestEmailResultDto({
+    required this.success,
+    required this.recipient,
+    required this.message,
+    required this.sentAt,
+  });
+
+  factory TestEmailResultDto.fromJson(Map<String, dynamic> json) =>
+      TestEmailResultDto(
+        success: (json['success'] as bool?) ?? false,
+        recipient: (json['recipient'] as String?) ?? '',
+        message: (json['message'] as String?) ?? '',
+        sentAt: DateTime.parse(json['sentAt'] as String),
+      );
+}

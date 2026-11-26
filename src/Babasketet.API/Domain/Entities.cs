@@ -18,6 +18,33 @@ public static class HouseRoles
     public const string Member = "member";
 }
 
+public static class EmailSecurityModes
+{
+    public const string None = "None";
+    public const string StartTls = "StartTls";
+    public const string SslTls = "SslTls";
+    public const string Auto = "Auto";
+
+    public static readonly HashSet<string> Allowed =
+        new([None, StartTls, SslTls, Auto], StringComparer.OrdinalIgnoreCase);
+}
+
+public class SystemEmailConfig
+{
+    public static readonly Guid SingletonId = Guid.Parse("30000000-0000-0000-0000-000000000001");
+
+    public Guid Id { get; set; } = SingletonId;
+    public string Host { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+    public string? Username { get; set; }
+    public string? EncryptedPassword { get; set; }
+    public string SecurityMode { get; set; } = EmailSecurityModes.StartTls;
+    public string FromEmail { get; set; } = string.Empty;
+    public string FromName { get; set; } = "Babasketet";
+    public bool Enabled { get; set; } = true;
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
 public class AppUser
 {
     public Guid Id { get; set; }
