@@ -751,6 +751,25 @@ public sealed class BabasketetApiIntegrationTests(BabasketetApiFixture fixture)
             m.Subject.Contains(shortInv.Code));
     }
 
+    [Fact]
+    public async Task IT_API_20_InspectHouseInvitation_ShouldReturnHouseInfoWithoutJoining_And410WhenInvalid()
+    {
+        var userJwt = fixture.IssueZitadelJwt("inspect-owner", roles: ["User"], email: "inspect.owner@babasketet.test");
+        using var ownerClient = fixture.CreateClientWithToken(userJwt);
+        var created = await (await ownerClient.PostAsJsonAsync("/api/v1/houses", new CreateHouseRequest("Casa Takeoff")))
+            .Content.ReadFromJsonAsync<CreateHouseResponse>();
+        var inv = await (await ownerClient.PostAsync($"/api/v1/houses/{created!.House.Id}/invitations", null))
+            .Content.ReadFromJsonAsync<InvitationResponse>();
+
+        using var publicClient = fixture.CreateClientWithToken();
+        var inspectOk = await publicClient.GetFromJsonAsync<InspectHouseInvitationResponse>($"/api/v1/invitations/{inv!.Token}");
+        inspectOk!.HouseId.Should().Be(created.House.Id);
+        inspectOk.HouseName.Should().Be("Casa Takeoff");
+
+        var inspectMissing = await publicClient.GetAsync("/api/v1/invitations/non-existent-token");
+        inspectMissing.StatusCode.Should().Be(HttpStatusCode.Gone);
+    }
+
     private HubConnection CreateHubConnection(string token)
     {
         var handler = fixture.Factory.Server.CreateHandler();

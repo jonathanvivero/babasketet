@@ -5,6 +5,7 @@ import 'package:babasketet_web/core/storage/local_storage.dart';
 import 'package:babasketet_web/core/widgets/long_press_and_dot.dart';
 import 'package:babasketet_web/features/admin/admin_page.dart';
 import 'package:babasketet_web/features/houses/house_providers.dart';
+import 'package:babasketet_web/features/houses/join_house_takeoff_page.dart';
 import 'package:babasketet_web/features/houses/onboarding_page.dart';
 import 'package:babasketet_web/features/invitations/invitation_redeem_page.dart';
 import 'package:babasketet_web/features/pwa/pwa_install_banner.dart';
@@ -277,6 +278,16 @@ class _FakeAdminApiClient extends BabasketetApiClient {
         sent: true,
         message: 'Solicitud de renovación enviada para $code.',
       );
+
+  @override
+  Future<InspectHouseInvitationResponseDto> inspectHouseInvitation(
+    String token,
+  ) async =>
+      InspectHouseInvitationResponseDto(
+        houseId: 'house-takeoff-1',
+        houseName: 'Casa Verano',
+        expiresAt: DateTime(2026, 11, 26, 18, 0),
+      );
 }
 
 void main() {
@@ -515,5 +526,39 @@ void main() {
     await tester.tap(find.text('Comprobar código'));
     await tester.pumpAndSettle();
     expect(find.text('Registrarse para canjear'), findsOneWidget);
+  });
+
+  testWidgets(
+      'JoinHouseTakeoffPage presents register, credentials and guest options',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    const guestMe = MeResponse(
+      globalRole: 'Guest',
+      isAdmin: false,
+      isAuthenticated: false,
+      status: 'Active',
+      effectiveRoles: ['Guest'],
+      houses: [],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          apiClientProvider.overrideWithValue(_FakeAdminApiClient(guestMe)),
+        ],
+        child: const MaterialApp(
+          home: JoinHouseTakeoffPage(token: 'tok-test'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Casa Verano'), findsOneWidget);
+    expect(find.text('Registrarme ahora'), findsOneWidget);
+    expect(
+      find.text('Ya tengo cuenta (Introducir credenciales)'),
+      findsOneWidget,
+    );
+    expect(find.text('Continuar como invitado'), findsOneWidget);
   });
 }

@@ -27,6 +27,10 @@ public static class BabasketetEndpoints
             Results.Ok(await svc.CreateInvitationAsync(houseId, ct)))
             .RequireAuthorization();
 
+        v1.MapGet("/invitations/{token}", async (string token, HouseService svc, CancellationToken ct) =>
+            Results.Ok(await svc.InspectInvitationAsync(token, ct)))
+            .AllowAnonymous();
+
         v1.MapPost("/invitations/{token}/join", async (string token, HouseService svc, CancellationToken ct) =>
             Results.Ok(await svc.JoinByInvitationAsync(token, ct)))
             .AllowAnonymous();

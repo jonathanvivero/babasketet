@@ -627,4 +627,15 @@ class BabasketetApiClient {
         );
         return RequestInvitationRenewalResponseDto.fromJson(res.data!);
       });
+
+  Future<InspectHouseInvitationResponseDto> inspectHouseInvitation(
+    String token,
+  ) =>
+      _wrap(() async {
+        final clean = Uri.encodeComponent(token.trim());
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/api/v1/invitations/$clean',
+        );
+        return InspectHouseInvitationResponseDto.fromJson(res.data!);
+      });
 }

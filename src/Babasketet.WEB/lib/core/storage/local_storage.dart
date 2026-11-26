@@ -8,6 +8,7 @@ class LocalStorageService {
   static const _kPkceVerifier = 'babasketet.pkce_verifier';
   static const _kInstallPromptSeen = 'babasketet.pwa_install_prompted';
   static const _kPendingInviteCode = 'babasketet.pending_invite_code';
+  static const _kPendingHouseJoinToken = 'babasketet.pending_house_join_token';
 
   Future<String?> getDeviceToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -98,6 +99,22 @@ class LocalStorageService {
     final prefs = await SharedPreferences.getInstance();
     final v = prefs.getString(_kPendingInviteCode);
     await prefs.remove(_kPendingInviteCode);
+    return v;
+  }
+
+  Future<void> setPendingHouseJoinToken(String? token) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (token == null || token.trim().isEmpty) {
+      await prefs.remove(_kPendingHouseJoinToken);
+    } else {
+      await prefs.setString(_kPendingHouseJoinToken, token.trim());
+    }
+  }
+
+  Future<String?> takePendingHouseJoinToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final v = prefs.getString(_kPendingHouseJoinToken);
+    await prefs.remove(_kPendingHouseJoinToken);
     return v;
   }
 }

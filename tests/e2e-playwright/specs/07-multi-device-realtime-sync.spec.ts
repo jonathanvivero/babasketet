@@ -30,12 +30,16 @@ test.describe('F7: Sincronización en tiempo real en 3 dispositivos', () => {
 		const joinPath = urlText.match(/\/join\/[A-Za-z0-9_-]+/)![0];
 		await p1.getByText('Cerrar').click();
 
-		// Dispositivo 2 y 3 se unen
+		// Dispositivo 2 y 3 se unen como invitados tras la pantalla de decisión
 		await p2.goto(joinPath);
 		await enableFlutterSemantics(p2);
+		await expect(sem(p2, 'join_takeoff_guest_btn')).toBeVisible({ timeout: 15_000 });
+		await sem(p2, 'join_takeoff_guest_btn').click();
 		await expect(sem(p2, 'list_input_field')).toBeVisible({ timeout: 15_000 });
 		await p3.goto(joinPath);
 		await enableFlutterSemantics(p3);
+		await expect(sem(p3, 'join_takeoff_guest_btn')).toBeVisible({ timeout: 15_000 });
+		await sem(p3, 'join_takeoff_guest_btn').click();
 		await expect(sem(p3, 'list_input_field')).toBeVisible({ timeout: 15_000 });
 		await p3.waitForTimeout(800);
 

@@ -56,6 +56,7 @@ La pirámide de testing de **Babasketet** garantiza que cada regla de dominio, r
 | `IT-API-17` | **Notificaciones Admin y Envío Multi-Admin** | Valida notificación por email a todos los admins activos, paginación de 10 en 10, filtros combinados y transiciones `New`/`Read`/`Archived` con fechas. |
 | `IT-API-18` | **Invitaciones de Plataforma** | Valida generación con código único, expiración +7d/indefinida, filtros de fecha y estado, relación con usuario canjeador, cancelación, renovación, reactivación y envío multi-email vía SMTP. |
 | `IT-API-19` | **Canje y Renovación de Invitaciones** | Valida check público (`Active`/`Expired`), bloqueo a anónimos al canjear, canje vinculado a usuario registrado y solicitud de renovación con notificación + email a admins. |
+| `IT-API-20` | **Inspección de Enlace `/join/:token`** | Valida `GET /api/v1/invitations/{token}` devolviendo datos de la casa sin unir aún y `410 Gone` si caducó/no existe. |
 
 ---
 

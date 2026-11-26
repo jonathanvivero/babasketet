@@ -1035,3 +1035,23 @@ class RequestInvitationRenewalResponseDto {
         message: (json['message'] as String?) ?? '',
       );
 }
+
+class InspectHouseInvitationResponseDto {
+  final String houseId;
+  final String houseName;
+  final DateTime expiresAt;
+
+  const InspectHouseInvitationResponseDto({
+    required this.houseId,
+    required this.houseName,
+    required this.expiresAt,
+  });
+
+  factory InspectHouseInvitationResponseDto.fromJson(
+          Map<String, dynamic> json) =>
+      InspectHouseInvitationResponseDto(
+        houseId: json['houseId'] as String,
+        houseName: (json['houseName'] as String?) ?? '',
+        expiresAt: DateTime.parse(json['expiresAt'] as String),
+      );
+}

@@ -118,6 +118,31 @@ public sealed class HouseService(
         return new InvitationResponse(token, $"/join/{token}", expiresAt);
     }
 
+    public async Task<InspectHouseInvitationResponse> InspectInvitationAsync(string token, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            throw new InvitationExpiredException();
+        }
+
+        var hash = HashToken(token.Trim());
+        var invitation = await db.HouseInvitations
+            .AsNoTracking()
+            .Include(i => i.House)
+            .FirstOrDefaultAsync(i => i.TokenHash == hash, ct);
+
+        var now = timeProvider.GetUtcNow();
+        if (invitation is null || !invitation.IsActiveAt(now))
+        {
+            throw new InvitationExpiredException();
+        }
+
+        return new InspectHouseInvitationResponse(
+            invitation.HouseId,
+            invitation.House.Name,
+            invitation.ExpiresAt);
+    }
+
     public async Task<JoinInvitationResponse> JoinByInvitationAsync(string token, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(token))
