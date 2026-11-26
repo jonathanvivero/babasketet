@@ -206,3 +206,5 @@ Proporcionar un backoffice en `/admin-bo` exclusivo del rol `Admin` junto con el
 - **AC-F8.7 (Canje de Invitación `/invitation-redeem/:code`)**:
   - *When* un usuario entra en `/invitation-redeem/:code` y consigna/valida un código activo → pide registro en WillIAM y al completar canjea el código vinculando al usuario registrado antes de redirigir a `"Crear Casa o unirte a una"` (`/onboarding`).
   - *When* el código es válido pero expirado → muestra botón para solicitar renovación enviando notificación + correo a admins y regresa al formulario de código.
+- **AC-F8.8 (Takeoff en `/join/:token` — "únete a una casa")**:
+  - *When* un usuario sin sesión autenticada abre `/join/:token` → se valida el enlace y se le ofrece **Registrarme ahora**, **Ya tengo cuenta (Introducir credenciales)** o **Continuar como invitado** (con posibilidad de registrarse después).

@@ -126,6 +126,7 @@ WHERE product_id = @productId
 | `GET` | `/api/v1/houses` | Lista las casas accesibles por el usuario/dispositivo actual (máx. 1 anónimo, máx. 4 registrado). |
 | `POST` | `/api/v1/houses` | Crea una nueva casa (`{ name }`). Valida el límite 1/4. |
 | `POST` | `/api/v1/houses/{houseId}/invitations` | Genera un enlace de invitación válido durante **1 hora** (`{ token, url, expiresAt }`). |
+| `GET` | `/api/v1/invitations/{token}` | Inspecciona la validez del token de invitación a una casa y devuelve el nombre de la casa (`410 Gone` si caducó/es inválido). |
 | `POST` | `/api/v1/invitations/{token}/join` | Une al usuario/dispositivo actual a la casa asociada al token. Valida expiración (410 Gone si caducó) y límite 1/4. |
 | `POST` | `/api/v1/houses/claim` | Vincula la casa anónima del `deviceId` al `userId` recién autenticado con `WillIAM`. |
 

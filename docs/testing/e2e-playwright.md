@@ -110,6 +110,9 @@ tests/e2e-playwright/
 ### `13-invitations-redeem.spec.ts` — Canje `/invitation-redeem/:code`
 - **E2E-34**: Código expirado solicita renovación (notifica en `/admin-bo` y Mailpit) y vuelve al prompt de código; código válido registra en WillIAM, canjea y pasa a `/onboarding` dejando vínculo en `Canjeadas`.
 
+### `14-house-joining-takeoff.spec.ts` — Decisión al Entrar por `/join/:token`
+- **E2E-35**: Al llegar al enlace de invitación a una casa pregunta al usuario entre **Registrarme ahora**, **Introducir credenciales** o **Continuar como invitado**, completando las 3 vías hasta el Dashboard de la casa.
+
 ---
 
 ## 4. Ejecución en Docker / CI

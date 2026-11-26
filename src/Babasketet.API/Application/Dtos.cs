@@ -57,6 +57,11 @@ public sealed record InvitationResponse(
     string Path,
     DateTimeOffset ExpiresAt);
 
+public sealed record InspectHouseInvitationResponse(
+    Guid HouseId,
+    string HouseName,
+    DateTimeOffset ExpiresAt);
+
 public sealed record JoinInvitationResponse(
     HouseDto House,
     string? DeviceToken);

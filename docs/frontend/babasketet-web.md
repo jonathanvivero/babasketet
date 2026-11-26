@@ -140,6 +140,7 @@ lib/
   - **Configuraciones → Correo Electrónico Saliente**: configuración SMTP (servidor, puerto, seguridad `StartTls`/`SslTls`/`None`/`Auto`, cuenta, contraseña protegida, remitente) con persistencia en BD y botón de prueba de envío.
   - **Invitaciones**: alta de invitaciones de plataforma con código único y caducidad por defecto +7 días editable/indefinida, botones para copiar URL (`/invitation-redeem/{code}`), compartir por WhatsApp y envío multi-destinatario (TextArea de emails), listado con filtros de fecha y estado, relación al usuario canjeador, cancelar, renovar (`+1/7/15/30d` / indefinida si no expiró) y reactivar (`1/7/15/30d`).
   - **Canje de Invitación (`/invitation-redeem` y `/invitation-redeem/:code`)**: solicita o valida código; si es válido y activo dirige al registro en WillIAM y canjea automáticamente al volver pasando a `/onboarding` ("Crear Casa o unirte a una"); si expiró permite solicitar renovación (notificación + correo a admins) y regresa al prompt del código.
+  - **Takeoff de Unión a Casa (`/join/:token`)**: valida el enlace y pregunta al usuario no autenticado si prefiere **Registrarme ahora**, **Introducir credenciales** (WillIAM) o **Continuar como invitado** (con registro posterior disponible).
   - **Notificaciones (tercio derecho del dashboard principal)**: listado paginado de 10 en 10, filtro por defecto `Nuevas` (`Todas`, `Nuevas`, `Leídas`, `Archivadas`), acciones rápidas de estado y apertura en popup con marcado automático como `Leída` y navegación `Anterior` / `Siguiente`.
 
 ---

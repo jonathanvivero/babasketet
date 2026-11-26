@@ -9,6 +9,7 @@ import 'core/router/url_strategy.dart';
 import 'features/admin/admin_page.dart';
 import 'features/dashboard/dashboard_page.dart';
 import 'features/houses/house_providers.dart';
+import 'features/houses/join_house_takeoff_page.dart';
 import 'features/houses/onboarding_page.dart';
 import 'features/invitations/invitation_redeem_page.dart';
 import 'features/pwa/pwa_install_banner.dart';
@@ -46,7 +47,7 @@ class _BabasketetAppState extends ConsumerState<BabasketetApp> {
         ),
         GoRoute(
           path: '/join/:token',
-          builder: (context, state) => _JoinRouteHandler(
+          builder: (context, state) => JoinHouseTakeoffPage(
             token: state.pathParameters['token'] ?? '',
           ),
         ),
@@ -118,60 +119,6 @@ class _HomeGate extends ConsumerWidget {
   }
 }
 
-class _JoinRouteHandler extends ConsumerStatefulWidget {
-  final String token;
-
-  const _JoinRouteHandler({required this.token});
-
-  @override
-  ConsumerState<_JoinRouteHandler> createState() => _JoinRouteHandlerState();
-}
-
-class _JoinRouteHandlerState extends ConsumerState<_JoinRouteHandler> {
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _join();
-  }
-
-  Future<void> _join() async {
-    try {
-      await ref.read(houseControllerProvider.notifier).joinInvitation(widget.token);
-      if (mounted) context.go('/');
-    } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: _error != null
-            ? Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.link_off_rounded, size: 48, color: Colors.red),
-                    const SizedBox(height: 12),
-                    Text(_error!, textAlign: TextAlign.center),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: () => context.go('/'),
-                      child: const Text('Volver al inicio'),
-                    ),
-                  ],
-                ),
-              )
-            : const CircularProgressIndicator(),
-      ),
-    );
-  }
-}
-
 class _AuthCallbackHandler extends ConsumerStatefulWidget {
   final String? code;
 
@@ -203,6 +150,8 @@ class _AuthCallbackHandlerState extends ConsumerState<_AuthCallbackHandler> {
       await ref.read(oidcServiceProvider).completeCallback(code);
       final pendingInvite =
           await ref.read(localStorageProvider).takePendingInviteCode();
+      final pendingHouseJoin =
+          await ref.read(localStorageProvider).takePendingHouseJoinToken();
       if (pendingInvite != null && pendingInvite.isNotEmpty) {
         await ref.read(apiClientProvider).redeemPlatformInvitation(pendingInvite);
         await ref.read(apiClientProvider).claimAnonymousHouses();
@@ -211,6 +160,13 @@ class _AuthCallbackHandlerState extends ConsumerState<_AuthCallbackHandler> {
         return;
       }
       await ref.read(apiClientProvider).claimAnonymousHouses();
+      if (pendingHouseJoin != null && pendingHouseJoin.isNotEmpty) {
+        await ref
+            .read(houseControllerProvider.notifier)
+            .joinInvitation(pendingHouseJoin);
+        if (mounted) context.go('/');
+        return;
+      }
       await ref.read(houseControllerProvider.notifier).bootstrap();
       if (mounted) context.go('/');
     } catch (e) {
