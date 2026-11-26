@@ -6,6 +6,7 @@ namespace Babasketet.API.Infrastructure;
 public sealed class BabasketetDbContext(DbContextOptions<BabasketetDbContext> options) : DbContext(options)
 {
     public DbSet<AppUser> AppUsers => Set<AppUser>();
+    public DbSet<SystemEmailConfig> SystemEmailConfigs => Set<SystemEmailConfig>();
     public DbSet<House> Houses => Set<House>();
     public DbSet<HouseMember> HouseMembers => Set<HouseMember>();
     public DbSet<HouseInvitation> HouseInvitations => Set<HouseInvitation>();
@@ -49,6 +50,23 @@ public sealed class BabasketetDbContext(DbContextOptions<BabasketetDbContext> op
             e.HasIndex(x => x.DeviceId)
                 .IsUnique()
                 .HasFilter("device_id IS NOT NULL");
+        });
+
+        modelBuilder.Entity<SystemEmailConfig>(e =>
+        {
+            e.ToTable("system_email_configs", t =>
+                t.HasCheckConstraint("ck_system_email_configs_port", "port BETWEEN 1 AND 65535"));
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.Host).HasColumnName("host").HasMaxLength(255).IsRequired();
+            e.Property(x => x.Port).HasColumnName("port").IsRequired();
+            e.Property(x => x.Username).HasColumnName("username").HasMaxLength(255);
+            e.Property(x => x.EncryptedPassword).HasColumnName("encrypted_password").HasColumnType("text");
+            e.Property(x => x.SecurityMode).HasColumnName("security_mode").HasMaxLength(32).IsRequired();
+            e.Property(x => x.FromEmail).HasColumnName("from_email").HasMaxLength(256).IsRequired();
+            e.Property(x => x.FromName).HasColumnName("from_name").HasMaxLength(150).IsRequired();
+            e.Property(x => x.Enabled).HasColumnName("enabled").IsRequired();
+            e.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
         });
 
         modelBuilder.Entity<House>(e =>

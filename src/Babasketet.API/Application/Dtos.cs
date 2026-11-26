@@ -304,3 +304,37 @@ public sealed record AdminCatalogItemDto(
     int HouseCount,
     Guid? SingleHouseId,
     string LocationLabel);
+
+// === Configuracion de Correo Saliente (SMTP) ===
+public sealed record EmailConfigDto(
+    bool IsConfigured,
+    string Host,
+    int Port,
+    string? Username,
+    bool HasPassword,
+    string SecurityMode,
+    string FromEmail,
+    string FromName,
+    bool Enabled,
+    DateTimeOffset? UpdatedAt);
+
+public sealed record SaveEmailConfigRequest(
+    string Host,
+    int Port,
+    string? Username,
+    string? Password,
+    bool ClearPassword,
+    string SecurityMode,
+    string FromEmail,
+    string? FromName,
+    bool Enabled);
+
+public sealed record TestEmailRequest(
+    string? ToEmail,
+    SaveEmailConfigRequest? OverrideConfig = null);
+
+public sealed record TestEmailResultDto(
+    bool Success,
+    string Recipient,
+    string Message,
+    DateTimeOffset SentAt);

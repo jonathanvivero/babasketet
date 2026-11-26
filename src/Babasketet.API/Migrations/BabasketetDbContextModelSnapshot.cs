@@ -21,6 +21,22 @@ partial class BabasketetDbContextModelSnapshot : ModelSnapshot
 
         NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+        modelBuilder.Entity("Babasketet.API.Domain.SystemEmailConfig", b =>
+            {
+                b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid").HasColumnName("id");
+                b.Property<bool>("Enabled").HasColumnType("boolean").HasColumnName("enabled");
+                b.Property<string>("EncryptedPassword").HasColumnType("text").HasColumnName("encrypted_password");
+                b.Property<string>("FromEmail").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)").HasColumnName("from_email");
+                b.Property<string>("FromName").IsRequired().HasMaxLength(150).HasColumnType("character varying(150)").HasColumnName("from_name");
+                b.Property<string>("Host").IsRequired().HasMaxLength(255).HasColumnType("character varying(255)").HasColumnName("host");
+                b.Property<int>("Port").HasColumnType("integer").HasColumnName("port");
+                b.Property<string>("SecurityMode").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)").HasColumnName("security_mode");
+                b.Property<DateTimeOffset>("UpdatedAt").HasColumnType("timestamp with time zone").HasColumnName("updated_at");
+                b.Property<string>("Username").HasMaxLength(255).HasColumnType("character varying(255)").HasColumnName("username");
+                b.HasKey("Id");
+                b.ToTable("system_email_configs", t => t.HasCheckConstraint("ck_system_email_configs_port", "port BETWEEN 1 AND 65535"));
+            });
+
         modelBuilder.Entity("Babasketet.API.Domain.AppUser", b =>
             {
                 b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid").HasColumnName("id");

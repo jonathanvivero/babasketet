@@ -423,4 +423,54 @@ class BabasketetApiClient {
             .map((e) => AdminCatalogItemDto.fromJson(e as Map<String, dynamic>))
             .toList();
       });
+
+  Future<EmailConfigDto> adminGetEmailConfig() => _wrap(() async {
+        final res = await _dio
+            .get<Map<String, dynamic>>('/api/v1/admin/settings/email');
+        return EmailConfigDto.fromJson(res.data!);
+      });
+
+  Future<EmailConfigDto> adminSaveEmailConfig({
+    required String host,
+    required int port,
+    String? username,
+    String? password,
+    bool clearPassword = false,
+    required String securityMode,
+    required String fromEmail,
+    String? fromName,
+    required bool enabled,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.put<Map<String, dynamic>>(
+          '/api/v1/admin/settings/email',
+          data: {
+            'host': host,
+            'port': port,
+            'username': username,
+            'password': password,
+            'clearPassword': clearPassword,
+            'securityMode': securityMode,
+            'fromEmail': fromEmail,
+            'fromName': fromName,
+            'enabled': enabled,
+          },
+        );
+        return EmailConfigDto.fromJson(res.data!);
+      });
+
+  Future<TestEmailResultDto> adminSendTestEmail({
+    String? toEmail,
+    Map<String, dynamic>? overrideConfig,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/admin/settings/email/test',
+          data: {
+            'toEmail': toEmail,
+            if (overrideConfig != null) 'overrideConfig': overrideConfig,
+          },
+        );
+        return TestEmailResultDto.fromJson(res.data!);
+      });
 }
