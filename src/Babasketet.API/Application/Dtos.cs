@@ -395,6 +395,33 @@ public sealed record SendPlatformInvitationEmailsResultDto(
     IReadOnlyList<string> Recipients,
     string Message);
 
+public sealed record CheckPlatformInvitationResponse(
+    string Code,
+    string Status,
+    bool IsValid,
+    bool CanRedeem,
+    bool IsExpired,
+    DateTimeOffset? ExpiresAt,
+    string Message);
+
+public sealed record RedeemPlatformInvitationRequest(
+    string Code);
+
+public sealed record RedeemPlatformInvitationResponse(
+    bool Redeemed,
+    string Code,
+    Guid? RedeemedByUserId,
+    DateTimeOffset? RedeemedAt);
+
+public sealed record RequestInvitationRenewalRequest(
+    string Code,
+    string? RequesterEmail = null,
+    string? Note = null);
+
+public sealed record RequestInvitationRenewalResponse(
+    bool Sent,
+    string Message);
+
 public sealed record CreateAdminNotificationRequest(
     string Title,
     string Body,

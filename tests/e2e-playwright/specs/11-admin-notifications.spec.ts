@@ -112,7 +112,9 @@ test.describe('F8b: Panel de Notificaciones en /admin-bo y envío de correo a Ad
 
 		// Verificar que el correo llegó realmente al email del Admin en Mailpit
 		await expect(async () => {
-			const mpRes = await request.get(`${MAILPIT_URL}/api/v1/messages`);
+			const mpRes = await request.get(
+				`${MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(n1Title)}&limit=100`
+			);
 			expect(mpRes.ok()).toBeTruthy();
 			const mpJson = await mpRes.json();
 			const hit = (mpJson.messages || []).some(

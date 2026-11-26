@@ -134,7 +134,9 @@ test.describe('F8c: Sistema de Invitaciones de Plataforma en /admin-bo', () => {
 		expect(await readSemanticText(sem(page, 'admin_inv_feedback'))).toContain('2 destinatario');
 
 		await expect(async () => {
-			const mpRes = await request.get(`${MAILPIT_URL}/api/v1/messages`);
+			const mpRes = await request.get(
+				`${MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(code)}&limit=100`
+			);
 			const mpJson = await mpRes.json();
 			const messages = mpJson.messages || [];
 			const to1 = messages.some(

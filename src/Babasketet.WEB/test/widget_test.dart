@@ -6,6 +6,7 @@ import 'package:babasketet_web/core/widgets/long_press_and_dot.dart';
 import 'package:babasketet_web/features/admin/admin_page.dart';
 import 'package:babasketet_web/features/houses/house_providers.dart';
 import 'package:babasketet_web/features/houses/onboarding_page.dart';
+import 'package:babasketet_web/features/invitations/invitation_redeem_page.dart';
 import 'package:babasketet_web/features/pwa/pwa_install_banner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -240,6 +241,42 @@ class _FakeAdminApiClient extends BabasketetApiClient {
         recipients: emails,
         message: 'Invitación enviada a ${emails.length} destinatario(s).',
       );
+
+  @override
+  Future<CheckPlatformInvitationResponseDto> checkPlatformInvitation(
+    String code,
+  ) async {
+    if (code.toUpperCase() == 'BBK-EXPIRED') {
+      return CheckPlatformInvitationResponseDto(
+        code: 'BBK-EXPIRED',
+        status: 'Expired',
+        isValid: true,
+        canRedeem: false,
+        isExpired: true,
+        expiresAt: DateTime(2026, 11, 20),
+        message: 'El código de invitación es válido, pero ha expirado.',
+      );
+    }
+    return const CheckPlatformInvitationResponseDto(
+      code: 'BBK-VALID01',
+      status: 'Active',
+      isValid: true,
+      canRedeem: true,
+      isExpired: false,
+      message: 'Código válido y activo. Regístrate para canjear la invitación.',
+    );
+  }
+
+  @override
+  Future<RequestInvitationRenewalResponseDto> requestPlatformInvitationRenewal(
+    String code, {
+    String? requesterEmail,
+    String? note,
+  }) async =>
+      RequestInvitationRenewalResponseDto(
+        sent: true,
+        message: 'Solicitud de renovación enviada para $code.',
+      );
 }
 
 void main() {
@@ -441,5 +478,42 @@ void main() {
     await tester.tap(find.text('Cerrar'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Notificaciones (0 nuevas)'), findsOneWidget);
+  });
+
+  testWidgets(
+      'InvitationRedeemPage handles valid active codes and expired renewal request',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    const guestMe = MeResponse(
+      globalRole: 'Guest',
+      isAdmin: false,
+      isAuthenticated: false,
+      status: 'Active',
+      effectiveRoles: ['Guest'],
+      houses: [],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          apiClientProvider.overrideWithValue(_FakeAdminApiClient(guestMe)),
+        ],
+        child: const MaterialApp(
+          home: InvitationRedeemPage(initialCode: 'BBK-EXPIRED'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+        find.text('Solicitar renovación de invitación'), findsOneWidget);
+    await tester.tap(find.text('Solicitar renovación de invitación'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Solicitud de renovación enviada para BBK-EXPIRED'),
+        findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, 'BBK-VALID01');
+    await tester.tap(find.text('Comprobar código'));
+    await tester.pumpAndSettle();
+    expect(find.text('Registrarse para canjear'), findsOneWidget);
   });
 }

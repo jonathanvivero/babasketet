@@ -587,4 +587,44 @@ class BabasketetApiClient {
         );
         return SendPlatformInvitationEmailsResultDto.fromJson(res.data!);
       });
+
+  Future<CheckPlatformInvitationResponseDto> checkPlatformInvitation(
+    String code,
+  ) =>
+      _wrap(() async {
+        final clean = Uri.encodeComponent(code.trim());
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/api/v1/platform-invitations/$clean',
+        );
+        return CheckPlatformInvitationResponseDto.fromJson(res.data!);
+      });
+
+  Future<RedeemPlatformInvitationResponseDto> redeemPlatformInvitation(
+    String code,
+  ) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/platform-invitations/redeem',
+          data: {'code': code.trim()},
+        );
+        return RedeemPlatformInvitationResponseDto.fromJson(res.data!);
+      });
+
+  Future<RequestInvitationRenewalResponseDto> requestPlatformInvitationRenewal(
+    String code, {
+    String? requesterEmail,
+    String? note,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/platform-invitations/request-renewal',
+          data: {
+            'code': code.trim(),
+            if (requesterEmail != null && requesterEmail.trim().isNotEmpty)
+              'requesterEmail': requesterEmail.trim(),
+            if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+          },
+        );
+        return RequestInvitationRenewalResponseDto.fromJson(res.data!);
+      });
 }

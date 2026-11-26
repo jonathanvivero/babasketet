@@ -959,3 +959,79 @@ class SendPlatformInvitationEmailsResultDto {
         message: (json['message'] as String?) ?? '',
       );
 }
+
+class CheckPlatformInvitationResponseDto {
+  final String code;
+  final String status;
+  final bool isValid;
+  final bool canRedeem;
+  final bool isExpired;
+  final DateTime? expiresAt;
+  final String message;
+
+  const CheckPlatformInvitationResponseDto({
+    required this.code,
+    required this.status,
+    required this.isValid,
+    required this.canRedeem,
+    required this.isExpired,
+    this.expiresAt,
+    required this.message,
+  });
+
+  factory CheckPlatformInvitationResponseDto.fromJson(
+          Map<String, dynamic> json) =>
+      CheckPlatformInvitationResponseDto(
+        code: (json['code'] as String?) ?? '',
+        status: (json['status'] as String?) ?? 'Invalid',
+        isValid: (json['isValid'] as bool?) ?? false,
+        canRedeem: (json['canRedeem'] as bool?) ?? false,
+        isExpired: (json['isExpired'] as bool?) ?? false,
+        expiresAt: json['expiresAt'] != null
+            ? DateTime.parse(json['expiresAt'] as String)
+            : null,
+        message: (json['message'] as String?) ?? '',
+      );
+}
+
+class RedeemPlatformInvitationResponseDto {
+  final bool redeemed;
+  final String code;
+  final String? redeemedByUserId;
+  final DateTime? redeemedAt;
+
+  const RedeemPlatformInvitationResponseDto({
+    required this.redeemed,
+    required this.code,
+    this.redeemedByUserId,
+    this.redeemedAt,
+  });
+
+  factory RedeemPlatformInvitationResponseDto.fromJson(
+          Map<String, dynamic> json) =>
+      RedeemPlatformInvitationResponseDto(
+        redeemed: (json['redeemed'] as bool?) ?? false,
+        code: (json['code'] as String?) ?? '',
+        redeemedByUserId: json['redeemedByUserId'] as String?,
+        redeemedAt: json['redeemedAt'] != null
+            ? DateTime.parse(json['redeemedAt'] as String)
+            : null,
+      );
+}
+
+class RequestInvitationRenewalResponseDto {
+  final bool sent;
+  final String message;
+
+  const RequestInvitationRenewalResponseDto({
+    required this.sent,
+    required this.message,
+  });
+
+  factory RequestInvitationRenewalResponseDto.fromJson(
+          Map<String, dynamic> json) =>
+      RequestInvitationRenewalResponseDto(
+        sent: (json['sent'] as bool?) ?? false,
+        message: (json['message'] as String?) ?? '',
+      );
+}

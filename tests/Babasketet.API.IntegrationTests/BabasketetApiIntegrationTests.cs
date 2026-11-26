@@ -686,6 +686,71 @@ public sealed class BabasketetApiIntegrationTests(BabasketetApiFixture fixture)
         lastMonth.Should().Contain(x => x.Id == inv1.Id);
     }
 
+    [Fact]
+    public async Task IT_API_19_PlatformInvitationRedeemAndRenewalRequest_ShouldNotifyAdminsAndLinkUser()
+    {
+        var adminJwt = fixture.IssueZitadelJwt("admin-redeem", roles: ["User", "Admin"], email: "admin.redeem@babasketet.test");
+        using var adminClient = fixture.CreateClientWithToken(adminJwt);
+        await adminClient.GetAsync("/api/v1/me");
+
+        (await adminClient.PutAsJsonAsync("/api/v1/admin/settings/email",
+            new SaveEmailConfigRequest("smtp.test.local", 1025, null, null, true, "None", "noreply@babasketet.test", "Babasketet", true)))
+            .EnsureSuccessStatusCode();
+
+        // 1. Crear invitación activa e invitación que expirará en 1 hora
+        var activeInv = await (await adminClient.PostAsJsonAsync("/api/v1/admin/invitations",
+            new CreatePlatformInvitationRequest())).Content.ReadFromJsonAsync<PlatformInvitationDto>();
+        var shortInv = await (await adminClient.PostAsJsonAsync("/api/v1/admin/invitations",
+            new CreatePlatformInvitationRequest(fixture.TimeProvider.GetUtcNow().AddHours(1), false)))
+            .Content.ReadFromJsonAsync<PlatformInvitationDto>();
+
+        using var publicClient = fixture.CreateClientWithToken();
+
+        // Check público activo
+        var activeCheck = await publicClient.GetFromJsonAsync<CheckPlatformInvitationResponse>($"/api/v1/platform-invitations/{activeInv!.Code}");
+        activeCheck!.IsValid.Should().BeTrue();
+        activeCheck.CanRedeem.Should().BeTrue();
+        activeCheck.IsExpired.Should().BeFalse();
+
+        // Anónimo NO puede canjear (403)
+        var anonCreated = await (await publicClient.PostAsJsonAsync("/api/v1/houses", new CreateHouseRequest("Anon"))).Content.ReadFromJsonAsync<CreateHouseResponse>();
+        using var guestClient = fixture.CreateClientWithToken(anonCreated!.DeviceToken);
+        var guestRedeem = await guestClient.PostAsJsonAsync("/api/v1/platform-invitations/redeem", new RedeemPlatformInvitationRequest(activeInv.Code));
+        guestRedeem.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // Usuario registrado canjea -> vincula RedeemedByUserId y pasa a Redeemed
+        var newUserJwt = fixture.IssueZitadelJwt("redeemer-user", roles: ["User"], email: "nuevo.invitado@babasketet.test", displayName: "Nuevo Invitado");
+        using var newUserClient = fixture.CreateClientWithToken(newUserJwt);
+        var redeemResp = await newUserClient.PostAsJsonAsync("/api/v1/platform-invitations/redeem", new RedeemPlatformInvitationRequest(activeInv.Code));
+        redeemResp.EnsureSuccessStatusCode();
+        var redeemedDto = await redeemResp.Content.ReadFromJsonAsync<RedeemPlatformInvitationResponse>();
+        redeemedDto!.Redeemed.Should().BeTrue();
+
+        var redeemedInAdmin = await adminClient.GetFromJsonAsync<List<PlatformInvitationDto>>("/api/v1/admin/invitations?dateRange=all&statuses=Redeemed");
+        redeemedInAdmin.Should().ContainSingle(x =>
+            x.Id == activeInv.Id &&
+            x.RedeemedBy != null &&
+            x.RedeemedBy.Email == "nuevo.invitado@babasketet.test");
+
+        // 2. Expirar la segunda invitación -> check indica IsValid && IsExpired -> solicitar renovación -> AdminNotification + email
+        fixture.TimeProvider.Advance(TimeSpan.FromHours(2));
+        var expiredCheck = await publicClient.GetFromJsonAsync<CheckPlatformInvitationResponse>($"/api/v1/platform-invitations/{shortInv!.Code}");
+        expiredCheck!.IsValid.Should().BeTrue();
+        expiredCheck.CanRedeem.Should().BeFalse();
+        expiredCheck.IsExpired.Should().BeTrue();
+
+        var renewalResp = await publicClient.PostAsJsonAsync("/api/v1/platform-invitations/request-renewal",
+            new RequestInvitationRenewalRequest(shortInv.Code, "interesado@babasketet.test", "Por favor reactivar"));
+        renewalResp.EnsureSuccessStatusCode();
+        (await renewalResp.Content.ReadFromJsonAsync<RequestInvitationRenewalResponse>())!.Sent.Should().BeTrue();
+
+        var notifs = await adminClient.GetFromJsonAsync<AdminNotificationsPageDto>("/api/v1/admin/notifications?status=New");
+        notifs!.Items.Should().Contain(n => n.Title.Contains(shortInv.Code) && n.Body.Contains("interesado@babasketet.test"));
+        fixture.FakeSmtp.SentMessages.Should().Contain(m =>
+            m.ToEmail == "admin.redeem@babasketet.test" &&
+            m.Subject.Contains(shortInv.Code));
+    }
+
     private HubConnection CreateHubConnection(string token)
     {
         var handler = fixture.Factory.Server.CreateHandler();
