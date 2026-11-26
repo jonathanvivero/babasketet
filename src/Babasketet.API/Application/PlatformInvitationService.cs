@@ -9,6 +9,7 @@ public sealed class PlatformInvitationService(
     BabasketetDbContext db,
     UserDirectoryService users,
     EmailService emailService,
+    AdminNotificationService notificationService,
     TimeProvider timeProvider)
 {
     private static readonly char[] CodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".ToCharArray();
@@ -250,6 +251,151 @@ public sealed class PlatformInvitationService(
             validRecipients,
             $"Invitación enviada a {validRecipients.Count} destinatario(s).");
     }
+
+    public async Task<CheckPlatformInvitationResponse> CheckPublicAsync(
+        string code,
+        CancellationToken ct = default)
+    {
+        var normalized = NormalizeCode(code);
+        var now = timeProvider.GetUtcNow();
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return new CheckPlatformInvitationResponse(
+                normalized,
+                "Invalid",
+                false,
+                false,
+                false,
+                null,
+                "Introduce un código de invitación.");
+        }
+
+        var entity = await db.PlatformInvitations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Code == normalized, ct);
+        if (entity is null)
+        {
+            return new CheckPlatformInvitationResponse(
+                normalized,
+                "Invalid",
+                false,
+                false,
+                false,
+                null,
+                "El código de invitación no es válido o no existe.");
+        }
+
+        var status = entity.ComputeStatus(now);
+        return status switch
+        {
+            PlatformInvitationStatuses.Active => new CheckPlatformInvitationResponse(
+                entity.Code, status, true, true, false, entity.ExpiresAt,
+                "Código válido y activo. Regístrate para canjear la invitación."),
+            PlatformInvitationStatuses.Expired => new CheckPlatformInvitationResponse(
+                entity.Code, status, true, false, true, entity.ExpiresAt,
+                "El código de invitación es válido, pero ha expirado."),
+            PlatformInvitationStatuses.Cancelled => new CheckPlatformInvitationResponse(
+                entity.Code, status, false, false, false, entity.ExpiresAt,
+                "Esta invitación ha sido cancelada por un administrador."),
+            _ => new CheckPlatformInvitationResponse(
+                entity.Code, status, false, false, false, entity.ExpiresAt,
+                "Esta invitación ya ha sido canjeada anteriormente.")
+        };
+    }
+
+    public async Task<RedeemPlatformInvitationResponse> RedeemAsync(
+        RedeemPlatformInvitationRequest request,
+        string? rawBearerToken,
+        CancellationToken ct = default)
+    {
+        var appUser = await users.SyncAndValidateCallerAsync(rawBearerToken, ct);
+        if (appUser is null || !string.Equals(appUser.GlobalRole, AppGlobalRoles.User, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ForbiddenAccessException(
+                "Debes registrarte o iniciar sesión como usuario para canjear una invitación.");
+        }
+
+        var normalized = NormalizeCode(request.Code);
+        var entity = await db.PlatformInvitations
+            .FirstOrDefaultAsync(x => x.Code == normalized, ct)
+            ?? throw new ResourceNotFoundException("invitación", normalized);
+
+        var now = timeProvider.GetUtcNow();
+        if (entity.IsRedeemed)
+        {
+            if (entity.RedeemedByUserId == appUser.Id)
+            {
+                return new RedeemPlatformInvitationResponse(
+                    true, entity.Code, entity.RedeemedByUserId, entity.RedeemedAt);
+            }
+            throw new DomainValidationException(
+                "INVITATION_ALREADY_REDEEMED",
+                "Esta invitación ya fue canjeada por otro usuario.");
+        }
+
+        if (entity.IsCancelled)
+        {
+            throw new DomainValidationException(
+                "INVITATION_CANCELLED",
+                "Esta invitación fue cancelada.");
+        }
+
+        if (entity.IsExpiredAt(now))
+        {
+            throw new InvitationExpiredException();
+        }
+
+        entity.RedeemedAt = now;
+        entity.RedeemedByUserId = appUser.Id;
+        await db.SaveChangesAsync(ct);
+
+        return new RedeemPlatformInvitationResponse(true, entity.Code, appUser.Id, now);
+    }
+
+    public async Task<RequestInvitationRenewalResponse> RequestRenewalAsync(
+        RequestInvitationRenewalRequest request,
+        CancellationToken ct = default)
+    {
+        var normalized = NormalizeCode(request.Code);
+        var entity = await db.PlatformInvitations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Code == normalized, ct)
+            ?? throw new ResourceNotFoundException("invitación", normalized);
+
+        var now = timeProvider.GetUtcNow();
+        if (!entity.IsExpiredAt(now))
+        {
+            throw new DomainValidationException(
+                "INVITATION_RENEWAL_NOT_NEEDED",
+                "Solo se puede solicitar renovación para invitaciones válidas que hayan expirado.");
+        }
+
+        var requester = string.IsNullOrWhiteSpace(request.RequesterEmail)
+            ? "Un usuario invitado"
+            : request.RequesterEmail.Trim();
+        var noteLine = string.IsNullOrWhiteSpace(request.Note)
+            ? string.Empty
+            : $"\nNota del solicitante: {request.Note.Trim()}";
+        var expiredStr = entity.ExpiresAt.HasValue
+            ? entity.ExpiresAt.Value.ToUniversalTime().ToString("dd/MM/yyyy HH:mm 'UTC'")
+            : "—";
+
+        var title = $"Solicitud de renovación · {entity.Code}";
+        var body = $"{requester} ha solicitado renovar la invitación expirada '{entity.Code}' (expiró el {expiredStr}).{noteLine}\nPuedes reactivarla desde /admin-bo > Invitaciones.";
+
+        await notificationService.CreateAndNotifyAdminsAsync(
+            title,
+            body,
+            "invitation-renewal",
+            ct);
+
+        return new RequestInvitationRenewalResponse(
+            true,
+            $"Se ha enviado la solicitud de renovación para el código {entity.Code} a los administradores.");
+    }
+
+    private static string NormalizeCode(string? code) =>
+        (code ?? string.Empty).Trim().ToUpperInvariant();
 
     private async Task<PlatformInvitation> FindOrThrowAsync(Guid id, CancellationToken ct) =>
         await db.PlatformInvitations

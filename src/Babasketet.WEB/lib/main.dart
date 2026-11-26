@@ -10,6 +10,7 @@ import 'features/admin/admin_page.dart';
 import 'features/dashboard/dashboard_page.dart';
 import 'features/houses/house_providers.dart';
 import 'features/houses/onboarding_page.dart';
+import 'features/invitations/invitation_redeem_page.dart';
 import 'features/pwa/pwa_install_banner.dart';
 
 void main() {
@@ -53,6 +54,21 @@ class _BabasketetAppState extends ConsumerState<BabasketetApp> {
           path: '/auth/callback',
           builder: (context, state) => _AuthCallbackHandler(
             code: state.uri.queryParameters['code'],
+          ),
+        ),
+        GoRoute(
+          path: '/onboarding',
+          builder: (context, state) => const OnboardingPage(),
+        ),
+        GoRoute(
+          path: '/invitation-redeem',
+          builder: (context, state) =>
+              const InvitationRedeemPage(initialCode: ''),
+        ),
+        GoRoute(
+          path: '/invitation-redeem/:code',
+          builder: (context, state) => InvitationRedeemPage(
+            initialCode: state.pathParameters['code'] ?? '',
           ),
         ),
         GoRoute(
@@ -185,6 +201,15 @@ class _AuthCallbackHandlerState extends ConsumerState<_AuthCallbackHandler> {
     }
     try {
       await ref.read(oidcServiceProvider).completeCallback(code);
+      final pendingInvite =
+          await ref.read(localStorageProvider).takePendingInviteCode();
+      if (pendingInvite != null && pendingInvite.isNotEmpty) {
+        await ref.read(apiClientProvider).redeemPlatformInvitation(pendingInvite);
+        await ref.read(apiClientProvider).claimAnonymousHouses();
+        await ref.read(houseControllerProvider.notifier).bootstrap();
+        if (mounted) context.go('/onboarding');
+        return;
+      }
       await ref.read(apiClientProvider).claimAnonymousHouses();
       await ref.read(houseControllerProvider.notifier).bootstrap();
       if (mounted) context.go('/');

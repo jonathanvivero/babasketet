@@ -203,3 +203,6 @@ Proporcionar un backoffice en `/admin-bo` exclusivo del rol `Admin` junto con el
 - **AC-F8.6 (Sistema de Invitaciones de Plataforma en `/admin-bo`)**:
   - *Given* un `Admin` en la sección `Invitaciones`
   - *Then* puede generar códigos con caducidad configurable (+7 días por defecto o indefinida), copiar URL, enviar por WhatsApp o múltiples emails (uno por línea), filtrar por rangos de fecha y estado (`Activas`, `Todas`, `Canjeadas`, `Canceladas`, `Expiradas`), cancelar, renovar (solo activas no caducadas) y reactivar (`1/7/15/30` días desde reactivación).
+- **AC-F8.7 (Canje de Invitación `/invitation-redeem/:code`)**:
+  - *When* un usuario entra en `/invitation-redeem/:code` y consigna/valida un código activo → pide registro en WillIAM y al completar canjea el código vinculando al usuario registrado antes de redirigir a `"Crear Casa o unirte a una"` (`/onboarding`).
+  - *When* el código es válido pero expirado → muestra botón para solicitar renovación enviando notificación + correo a admins y regresa al formulario de código.

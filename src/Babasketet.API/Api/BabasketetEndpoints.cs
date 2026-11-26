@@ -251,6 +251,29 @@ public static class BabasketetEndpoints
                 CancellationToken ct) =>
             Results.Ok(await svc.SendByEmailAsync(invitationId, req, ExtractBearer(http), ct)));
 
+        // === Canje y solicitud de renovación de Invitaciones de Plataforma ===
+        v1.MapGet("/platform-invitations/{code}", async (
+                string code,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.CheckPublicAsync(code, ct)))
+            .AllowAnonymous();
+
+        v1.MapPost("/platform-invitations/redeem", async (
+                RedeemPlatformInvitationRequest req,
+                HttpContext http,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.RedeemAsync(req, ExtractBearer(http), ct)))
+            .RequireAuthorization();
+
+        v1.MapPost("/platform-invitations/request-renewal", async (
+                RequestInvitationRenewalRequest req,
+                PlatformInvitationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.RequestRenewalAsync(req, ct)))
+            .AllowAnonymous();
+
         app.MapHub<HouseHub>("/hubs/house");
 
         return app;

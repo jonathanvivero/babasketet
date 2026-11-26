@@ -40,8 +40,12 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     });
     try {
       await ref.read(houseControllerProvider.notifier).createHouse(name);
-      if (mounted && widget.allowBack && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
+      if (mounted) {
+        if (widget.allowBack && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        } else {
+          context.go('/');
+        }
       }
     } catch (e) {
       setState(() => _error = e.toString());
@@ -65,8 +69,12 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     });
     try {
       await ref.read(houseControllerProvider.notifier).joinInvitation(raw);
-      if (mounted && widget.allowBack && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
+      if (mounted) {
+        if (widget.allowBack && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        } else {
+          context.go('/');
+        }
       }
     } catch (e) {
       setState(() => _error = e.toString());

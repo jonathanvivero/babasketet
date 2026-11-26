@@ -193,6 +193,9 @@ WHERE product_id = @productId
 | `POST` | `/api/v1/admin/invitations/{id}/renew` | Renueva una invitación no caducada sumando `1/7/15/30` días o haciéndola indefinida. |
 | `POST` | `/api/v1/admin/invitations/{id}/reactivate` | Reactiva una invitación caducada o cancelada por `1/7/15/30` días desde el momento actual. |
 | `POST` | `/api/v1/admin/invitations/{id}/send-email` | Envía por SMTP la invitación con enlace `/invitation-redeem/{code}` a la lista de emails indicada. |
+| `GET` | `/api/v1/platform-invitations/{code}` | Comprueba públicamente si un código de invitación es válido, activo o expirado. |
+| `POST` | `/api/v1/platform-invitations/redeem` | Canjea una invitación activa vinculándola al usuario registrado autenticado. |
+| `POST` | `/api/v1/platform-invitations/request-renewal` | Solicita renovación de una invitación válida expirada generando alerta + email para administradores. |
 
 ---
 

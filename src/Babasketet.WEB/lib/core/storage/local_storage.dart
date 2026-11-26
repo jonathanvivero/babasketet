@@ -7,6 +7,7 @@ class LocalStorageService {
   static const _kHouseIds = 'babasketet.house_ids';
   static const _kPkceVerifier = 'babasketet.pkce_verifier';
   static const _kInstallPromptSeen = 'babasketet.pwa_install_prompted';
+  static const _kPendingInviteCode = 'babasketet.pending_invite_code';
 
   Future<String?> getDeviceToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -82,5 +83,21 @@ class LocalStorageService {
   Future<void> markInstallPromptSeen() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kInstallPromptSeen, true);
+  }
+
+  Future<void> setPendingInviteCode(String? code) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (code == null || code.trim().isEmpty) {
+      await prefs.remove(_kPendingInviteCode);
+    } else {
+      await prefs.setString(_kPendingInviteCode, code.trim().toUpperCase());
+    }
+  }
+
+  Future<String?> takePendingInviteCode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final v = prefs.getString(_kPendingInviteCode);
+    await prefs.remove(_kPendingInviteCode);
+    return v;
   }
 }

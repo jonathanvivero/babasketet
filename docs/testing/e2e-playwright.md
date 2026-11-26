@@ -107,6 +107,9 @@ tests/e2e-playwright/
 ### `12-admin-invitations.spec.ts` — Sistema de Invitaciones Admin
 - **E2E-33**: Admin genera invitación (+7d por defecto), copia URL / WhatsApp y envía por email (verificado en Mailpit), renueva `+7d`, cancela, filtra y reactiva `7d`.
 
+### `13-invitations-redeem.spec.ts` — Canje `/invitation-redeem/:code`
+- **E2E-34**: Código expirado solicita renovación (notifica en `/admin-bo` y Mailpit) y vuelve al prompt de código; código válido registra en WillIAM, canjea y pasa a `/onboarding` dejando vínculo en `Canjeadas`.
+
 ---
 
 ## 4. Ejecución en Docker / CI
