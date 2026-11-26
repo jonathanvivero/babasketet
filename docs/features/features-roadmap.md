@@ -200,3 +200,6 @@ Proporcionar un backoffice en `/admin-bo` exclusivo del rol `Admin` junto con el
 - **AC-F8.5 (Notificaciones en `/admin-bo`)**:
   - *Given* llega una nueva notificación
   - *Then* se envía por correo a todos los administradores, aparece paginada de 10 en 10 en el tercio derecho del dashboard filtrada por `Nuevas` (con filtros `Todas`, `Nuevas`, `Leídas`, `Archivadas`), y al abrirla en el popup se marca como `Leída` permitiendo navegar `Anterior`/`Siguiente`.
+- **AC-F8.6 (Sistema de Invitaciones de Plataforma en `/admin-bo`)**:
+  - *Given* un `Admin` en la sección `Invitaciones`
+  - *Then* puede generar códigos con caducidad configurable (+7 días por defecto o indefinida), copiar URL, enviar por WhatsApp o múltiples emails (uno por línea), filtrar por rangos de fecha y estado (`Activas`, `Todas`, `Canjeadas`, `Canceladas`, `Expiradas`), cancelar, renovar (solo activas no caducadas) y reactivar (`1/7/15/30` días desde reactivación).

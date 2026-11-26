@@ -502,4 +502,89 @@ class BabasketetApiClient {
         );
         return AdminNotificationDto.fromJson(res.data!);
       });
+
+  Future<List<PlatformInvitationDto>> adminGetPlatformInvitations({
+    String dateRange = 'all',
+    String statuses = 'Active',
+  }) =>
+      _wrap(() async {
+        final res = await _dio.get<List<dynamic>>(
+          '/api/v1/admin/invitations',
+          queryParameters: {
+            'dateRange': dateRange,
+            'statuses': statuses,
+          },
+        );
+        return res.data!
+            .map((e) =>
+                PlatformInvitationDto.fromJson(e as Map<String, dynamic>))
+            .toList();
+      });
+
+  Future<PlatformInvitationDto> adminCreatePlatformInvitation({
+    DateTime? expiresAt,
+    bool isIndefinite = false,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/admin/invitations',
+          data: {
+            'expiresAt': expiresAt?.toUtc().toIso8601String(),
+            'isIndefinite': isIndefinite,
+          },
+        );
+        return PlatformInvitationDto.fromJson(res.data!);
+      });
+
+  Future<PlatformInvitationDto> adminCancelPlatformInvitation(String id) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/admin/invitations/$id/cancel',
+        );
+        return PlatformInvitationDto.fromJson(res.data!);
+      });
+
+  Future<PlatformInvitationDto> adminRenewPlatformInvitation(
+    String id, {
+    int days = 7,
+    bool isIndefinite = false,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/admin/invitations/$id/renew',
+          data: {
+            'days': days,
+            'isIndefinite': isIndefinite,
+          },
+        );
+        return PlatformInvitationDto.fromJson(res.data!);
+      });
+
+  Future<PlatformInvitationDto> adminReactivatePlatformInvitation(
+    String id, {
+    int days = 7,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/admin/invitations/$id/reactivate',
+          data: {'days': days},
+        );
+        return PlatformInvitationDto.fromJson(res.data!);
+      });
+
+  Future<SendPlatformInvitationEmailsResultDto> adminSendPlatformInvitationEmails(
+    String id, {
+    required List<String> emails,
+    String? baseUrl,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/api/v1/admin/invitations/$id/send-email',
+          data: {
+            'emails': emails,
+            if (baseUrl != null) 'baseUrl': baseUrl,
+          },
+        );
+        return SendPlatformInvitationEmailsResultDto.fromJson(res.data!);
+      });
 }

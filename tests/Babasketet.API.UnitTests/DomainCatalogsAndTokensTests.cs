@@ -97,4 +97,35 @@ public sealed class DomainCatalogsAndTokensTests
         parsed.Should().Be(deviceId);
         svc.TryValidateToken("invalid.jwt.token").Should().BeNull();
     }
+
+    [Fact]
+    public void PlatformInvitation_ShouldComputeStatusAndActiveCorrectly()
+    {
+        var now = new DateTimeOffset(2026, 11, 26, 10, 0, 0, TimeSpan.Zero);
+
+        var active = new PlatformInvitation
+        {
+            Id = Guid.NewGuid(),
+            Code = "BBK-ACTIVE01",
+            CreatedAt = now,
+            ExpiresAt = now.AddDays(7)
+        };
+        active.ComputeStatus(now).Should().Be(PlatformInvitationStatuses.Active);
+        active.ComputeStatus(now.AddDays(7)).Should().Be(PlatformInvitationStatuses.Expired);
+
+        var indefinite = new PlatformInvitation
+        {
+            Id = Guid.NewGuid(),
+            Code = "BBK-INDEF001",
+            CreatedAt = now,
+            ExpiresAt = null
+        };
+        indefinite.ComputeStatus(now.AddYears(10)).Should().Be(PlatformInvitationStatuses.Active);
+
+        indefinite.CancelledAt = now.AddHours(1);
+        indefinite.ComputeStatus(now.AddHours(2)).Should().Be(PlatformInvitationStatuses.Cancelled);
+
+        indefinite.RedeemedAt = now.AddHours(3);
+        indefinite.ComputeStatus(now.AddHours(4)).Should().Be(PlatformInvitationStatuses.Redeemed);
+    }
 }

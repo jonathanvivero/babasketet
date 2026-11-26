@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/models/models.dart';
 import '../../core/widgets/long_press_and_dot.dart';
 import '../houses/house_providers.dart';
+import 'admin_invitations_section.dart';
 import 'admin_notifications_panel.dart';
 import 'admin_settings_section.dart';
 
@@ -274,7 +275,9 @@ class _AdminBackofficePageState extends ConsumerState<AdminBackofficePage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 900;
-        final activeTab = (!isWide && _selectedTab == 4) ? 4 : (_selectedTab >= 4 ? 0 : _selectedTab);
+        final activeTab = (!isWide && _selectedTab == 5)
+            ? 5
+            : (_selectedTab >= 5 ? 0 : _selectedTab);
 
         final mainArea = switch (activeTab) {
           0 => _selectedHouse != null
@@ -313,7 +316,13 @@ class _AdminBackofficePageState extends ConsumerState<AdminBackofficePage> {
               controller: _itemSearchCtrl,
               onSearchChanged: _searchItems,
             ),
-          3 => AdminSettingsSection(adminEmail: me.email),
+          3 => AdminInvitationsSection(
+              onOpenUser: (appUserId) {
+                setState(() => _selectedTab = 1);
+                _openUserDetail(appUserId);
+              },
+            ),
+          4 => AdminSettingsSection(adminEmail: me.email),
           _ => AdminNotificationsPanel(refreshTrigger: _notifRefreshTrigger),
         };
 
@@ -331,9 +340,10 @@ class _AdminBackofficePageState extends ConsumerState<AdminBackofficePage> {
                   _navChip(0, Icons.home_work_rounded, 'Casas (${_houses.length})', 'admin_tab_houses'),
                   _navChip(1, Icons.people_alt_rounded, 'Usuarios (${_users.length})', 'admin_tab_users'),
                   _navChip(2, Icons.inventory_2_rounded, 'Ítems (${_items.length})', 'admin_tab_items'),
-                  _navChip(3, Icons.settings_rounded, 'Configuraciones', 'admin_tab_settings'),
+                  _navChip(3, Icons.mail_outline_rounded, 'Invitaciones', 'admin_tab_invitations'),
+                  _navChip(4, Icons.settings_rounded, 'Configuraciones', 'admin_tab_settings'),
                   if (!isWide)
-                    _navChip(4, Icons.notifications_active_rounded, 'Notificaciones', 'admin_tab_notifications'),
+                    _navChip(5, Icons.notifications_active_rounded, 'Notificaciones', 'admin_tab_notifications'),
                   const SizedBox(width: 8),
                   Chip(
                     avatar: const Icon(Icons.verified_user_rounded, size: 16),

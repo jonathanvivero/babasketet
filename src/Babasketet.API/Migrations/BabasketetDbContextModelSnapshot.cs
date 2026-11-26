@@ -138,6 +138,22 @@ partial class BabasketetDbContextModelSnapshot : ModelSnapshot
                     });
             });
 
+        modelBuilder.Entity("Babasketet.API.Domain.PlatformInvitation", b =>
+            {
+                b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid").HasColumnName("id");
+                b.Property<DateTimeOffset?>("CancelledAt").HasColumnType("timestamp with time zone").HasColumnName("cancelled_at");
+                b.Property<string>("Code").IsRequired().HasMaxLength(40).HasColumnType("character varying(40)").HasColumnName("code");
+                b.Property<DateTimeOffset>("CreatedAt").HasColumnType("timestamp with time zone").HasColumnName("created_at");
+                b.Property<DateTimeOffset?>("ExpiresAt").HasColumnType("timestamp with time zone").HasColumnName("expires_at");
+                b.Property<DateTimeOffset?>("RedeemedAt").HasColumnType("timestamp with time zone").HasColumnName("redeemed_at");
+                b.Property<Guid?>("RedeemedByUserId").HasColumnType("uuid").HasColumnName("redeemed_by_user_id");
+                b.HasKey("Id");
+                b.HasIndex("Code").IsUnique();
+                b.HasIndex("CreatedAt");
+                b.HasIndex("RedeemedByUserId");
+                b.ToTable("platform_invitations", (string)null);
+            });
+
         modelBuilder.Entity("Babasketet.API.Domain.Product", b =>
             {
                 b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid").HasColumnName("id");
@@ -263,6 +279,12 @@ partial class BabasketetDbContextModelSnapshot : ModelSnapshot
             {
                 b.HasOne("Babasketet.API.Domain.House", "House").WithMany("Members").HasForeignKey("HouseId").OnDelete(DeleteBehavior.Cascade).IsRequired();
                 b.Navigation("House");
+            });
+
+        modelBuilder.Entity("Babasketet.API.Domain.PlatformInvitation", b =>
+            {
+                b.HasOne("Babasketet.API.Domain.AppUser", "RedeemedByUser").WithMany().HasForeignKey("RedeemedByUserId").OnDelete(DeleteBehavior.SetNull);
+                b.Navigation("RedeemedByUser");
             });
 
         modelBuilder.Entity("Babasketet.API.Domain.Product", b =>

@@ -871,3 +871,91 @@ class AdminNotificationsPageDto {
         newCount: (json['newCount'] as int?) ?? 0,
       );
 }
+
+class PlatformInvitationRedeemerDto {
+  final String userId;
+  final String displayName;
+  final String? email;
+
+  const PlatformInvitationRedeemerDto({
+    required this.userId,
+    required this.displayName,
+    this.email,
+  });
+
+  factory PlatformInvitationRedeemerDto.fromJson(Map<String, dynamic> json) =>
+      PlatformInvitationRedeemerDto(
+        userId: json['userId'] as String,
+        displayName: (json['displayName'] as String?) ?? '',
+        email: json['email'] as String?,
+      );
+}
+
+class PlatformInvitationDto {
+  final String id;
+  final String code;
+  final String status;
+  final DateTime createdAt;
+  final DateTime? expiresAt;
+  final bool isIndefinite;
+  final DateTime? cancelledAt;
+  final DateTime? redeemedAt;
+  final PlatformInvitationRedeemerDto? redeemedBy;
+
+  const PlatformInvitationDto({
+    required this.id,
+    required this.code,
+    required this.status,
+    required this.createdAt,
+    this.expiresAt,
+    required this.isIndefinite,
+    this.cancelledAt,
+    this.redeemedAt,
+    this.redeemedBy,
+  });
+
+  factory PlatformInvitationDto.fromJson(Map<String, dynamic> json) =>
+      PlatformInvitationDto(
+        id: json['id'] as String,
+        code: json['code'] as String,
+        status: json['status'] as String,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        expiresAt: json['expiresAt'] != null
+            ? DateTime.parse(json['expiresAt'] as String)
+            : null,
+        isIndefinite: (json['isIndefinite'] as bool?) ?? false,
+        cancelledAt: json['cancelledAt'] != null
+            ? DateTime.parse(json['cancelledAt'] as String)
+            : null,
+        redeemedAt: json['redeemedAt'] != null
+            ? DateTime.parse(json['redeemedAt'] as String)
+            : null,
+        redeemedBy: json['redeemedBy'] != null
+            ? PlatformInvitationRedeemerDto.fromJson(
+                json['redeemedBy'] as Map<String, dynamic>,
+              )
+            : null,
+      );
+}
+
+class SendPlatformInvitationEmailsResultDto {
+  final int sentCount;
+  final List<String> recipients;
+  final String message;
+
+  const SendPlatformInvitationEmailsResultDto({
+    required this.sentCount,
+    required this.recipients,
+    required this.message,
+  });
+
+  factory SendPlatformInvitationEmailsResultDto.fromJson(
+          Map<String, dynamic> json) =>
+      SendPlatformInvitationEmailsResultDto(
+        sentCount: (json['sentCount'] as int?) ?? 0,
+        recipients: ((json['recipients'] as List<dynamic>?) ?? [])
+            .map((e) => e.toString())
+            .toList(),
+        message: (json['message'] as String?) ?? '',
+      );
+}

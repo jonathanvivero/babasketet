@@ -67,6 +67,45 @@ public class AdminNotification
     public DateTimeOffset? ArchivedAt { get; set; }
 }
 
+public static class PlatformInvitationStatuses
+{
+    public const string Active = "Active";
+    public const string Redeemed = "Redeemed";
+    public const string Cancelled = "Cancelled";
+    public const string Expired = "Expired";
+
+    public static readonly HashSet<string> Allowed =
+        new([Active, Redeemed, Cancelled, Expired], StringComparer.OrdinalIgnoreCase);
+}
+
+public class PlatformInvitation
+{
+    public Guid Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? ExpiresAt { get; set; }
+    public DateTimeOffset? CancelledAt { get; set; }
+    public DateTimeOffset? RedeemedAt { get; set; }
+    public Guid? RedeemedByUserId { get; set; }
+
+    public AppUser? RedeemedByUser { get; set; }
+
+    public bool IsRedeemed => RedeemedAt.HasValue;
+    public bool IsCancelled => CancelledAt.HasValue;
+
+    public bool IsExpiredAt(DateTimeOffset now) =>
+        !IsRedeemed && !IsCancelled && ExpiresAt.HasValue && ExpiresAt.Value <= now;
+
+    public bool IsActiveAt(DateTimeOffset now) =>
+        !IsRedeemed && !IsCancelled && (!ExpiresAt.HasValue || ExpiresAt.Value > now);
+
+    public string ComputeStatus(DateTimeOffset now) =>
+        IsRedeemed ? PlatformInvitationStatuses.Redeemed :
+        IsCancelled ? PlatformInvitationStatuses.Cancelled :
+        IsExpiredAt(now) ? PlatformInvitationStatuses.Expired :
+        PlatformInvitationStatuses.Active;
+}
+
 public class AppUser
 {
     public Guid Id { get; set; }

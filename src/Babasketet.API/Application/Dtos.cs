@@ -358,6 +358,43 @@ public sealed record AdminNotificationsPageDto(
     int TotalPages,
     int NewCount);
 
+// === Sistema de Invitaciones de Plataforma ===
+public sealed record PlatformInvitationRedeemerDto(
+    Guid UserId,
+    string DisplayName,
+    string? Email);
+
+public sealed record PlatformInvitationDto(
+    Guid Id,
+    string Code,
+    string Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? ExpiresAt,
+    bool IsIndefinite,
+    DateTimeOffset? CancelledAt,
+    DateTimeOffset? RedeemedAt,
+    PlatformInvitationRedeemerDto? RedeemedBy);
+
+public sealed record CreatePlatformInvitationRequest(
+    DateTimeOffset? ExpiresAt = null,
+    bool IsIndefinite = false);
+
+public sealed record RenewPlatformInvitationRequest(
+    int Days = 7,
+    bool IsIndefinite = false);
+
+public sealed record ReactivatePlatformInvitationRequest(
+    int Days = 7);
+
+public sealed record SendPlatformInvitationEmailsRequest(
+    IReadOnlyList<string> Emails,
+    string? BaseUrl = null);
+
+public sealed record SendPlatformInvitationEmailsResultDto(
+    int SentCount,
+    IReadOnlyList<string> Recipients,
+    string Message);
+
 public sealed record CreateAdminNotificationRequest(
     string Title,
     string Body,
