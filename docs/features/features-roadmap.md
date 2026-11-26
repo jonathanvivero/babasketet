@@ -197,3 +197,6 @@ Proporcionar un backoffice en `/admin-bo` exclusivo del rol `Admin` junto con el
 - **AC-F8.4 (Configuraciones del sistema → Correo Electrónico Saliente)**:
   - *Given* un usuario `Admin` en `Configuraciones → Correo Electrónico Saliente`
   - *Then* puede configurar servidor SMTP, puerto, usuario, contraseña, cifrado y remitente, persistir la configuración en PostgreSQL y enviar un email de prueba desde la interfaz.
+- **AC-F8.5 (Notificaciones en `/admin-bo`)**:
+  - *Given* llega una nueva notificación
+  - *Then* se envía por correo a todos los administradores, aparece paginada de 10 en 10 en el tercio derecho del dashboard filtrada por `Nuevas` (con filtros `Todas`, `Nuevas`, `Leídas`, `Archivadas`), y al abrirla en el popup se marca como `Leída` permitiendo navegar `Anterior`/`Siguiente`.

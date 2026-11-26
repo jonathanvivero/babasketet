@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/models/models.dart';
 import '../../core/widgets/long_press_and_dot.dart';
 import '../houses/house_providers.dart';
+import 'admin_notifications_panel.dart';
 import 'admin_settings_section.dart';
 
 class AdminBackofficePage extends ConsumerStatefulWidget {
@@ -31,6 +32,7 @@ class _AdminBackofficePageState extends ConsumerState<AdminBackofficePage> {
 
   List<AdminCatalogItemDto> _items = const [];
   final _itemSearchCtrl = TextEditingController();
+  int _notifRefreshTrigger = 0;
 
   @override
   void initState() {
@@ -87,6 +89,7 @@ class _AdminBackofficePageState extends ConsumerState<AdminBackofficePage> {
         _houses = results[0] as List<AdminHouseSummaryDto>;
         _users = results[1] as List<AdminUserSummaryDto>;
         _items = results[2] as List<AdminCatalogItemDto>;
+        _notifRefreshTrigger++;
         _loadingData = false;
       });
     } catch (e) {
@@ -268,83 +271,110 @@ class _AdminBackofficePageState extends ConsumerState<AdminBackofficePage> {
       );
     }
 
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          color: const Color(0xFFF8FAFC),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _navChip(0, Icons.home_work_rounded, 'Casas (${_houses.length})', 'admin_tab_houses'),
-              _navChip(1, Icons.people_alt_rounded, 'Usuarios (${_users.length})', 'admin_tab_users'),
-              _navChip(2, Icons.inventory_2_rounded, 'Ítems (${_items.length})', 'admin_tab_items'),
-              _navChip(3, Icons.settings_rounded, 'Configuraciones', 'admin_tab_settings'),
-              const SizedBox(width: 8),
-              Chip(
-                avatar: const Icon(Icons.verified_user_rounded, size: 16),
-                label: Text('${me.email ?? me.displayName} (${me.effectiveRoles.join(" + ")})'),
-              ),
-            ],
-          ),
-        ),
-        if (_error != null)
-          MaterialBanner(
-            backgroundColor: const Color(0xFFFEE2E2),
-            content: Text(_error!, style: const TextStyle(color: Color(0xFF991B1B))),
-            actions: [
-              TextButton(
-                onPressed: () => setState(() => _error = null),
-                child: const Text('Cerrar'),
-              ),
-            ],
-          ),
-        if (_loadingData) const LinearProgressIndicator(),
-        Expanded(
-          child: switch (_selectedTab) {
-            0 => _selectedHouse != null
-                ? _HouseDetailView(
-                    detail: _selectedHouse!,
-                    onBack: () => setState(() => _selectedHouse = null),
-                    onOpenUser: (appUserId) {
-                      if (appUserId != null) {
-                        setState(() {
-                          _selectedTab = 1;
-                          _selectedHouse = null;
-                        });
-                        _openUserDetail(appUserId);
-                      }
-                    },
-                  )
-                : _HousesListView(
-                    houses: _houses,
-                    onSelect: (h) => _openHouseDetail(h.id),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 900;
+        final activeTab = (!isWide && _selectedTab == 4) ? 4 : (_selectedTab >= 4 ? 0 : _selectedTab);
+
+        final mainArea = switch (activeTab) {
+          0 => _selectedHouse != null
+              ? _HouseDetailView(
+                  detail: _selectedHouse!,
+                  onBack: () => setState(() => _selectedHouse = null),
+                  onOpenUser: (appUserId) {
+                    if (appUserId != null) {
+                      setState(() {
+                        _selectedTab = 1;
+                        _selectedHouse = null;
+                      });
+                      _openUserDetail(appUserId);
+                    }
+                  },
+                )
+              : _HousesListView(
+                  houses: _houses,
+                  onSelect: (h) => _openHouseDetail(h.id),
+                ),
+          1 => _selectedUser != null
+              ? _UserEditorView(
+                  user: _selectedUser!,
+                  onBack: () => setState(() => _selectedUser = null),
+                  onSaved: (updated) async {
+                    setState(() => _selectedUser = updated);
+                    await _refreshAllData();
+                  },
+                )
+              : _UsersListView(
+                  users: _users,
+                  onSelect: (u) => _openUserDetail(u.id),
+                ),
+          2 => _ItemsListView(
+              items: _items,
+              controller: _itemSearchCtrl,
+              onSearchChanged: _searchItems,
+            ),
+          3 => AdminSettingsSection(adminEmail: me.email),
+          _ => AdminNotificationsPanel(refreshTrigger: _notifRefreshTrigger),
+        };
+
+        return Column(
+          children: [
+            Container(
+              width: double.infinity,
+              color: const Color(0xFFF8FAFC),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _navChip(0, Icons.home_work_rounded, 'Casas (${_houses.length})', 'admin_tab_houses'),
+                  _navChip(1, Icons.people_alt_rounded, 'Usuarios (${_users.length})', 'admin_tab_users'),
+                  _navChip(2, Icons.inventory_2_rounded, 'Ítems (${_items.length})', 'admin_tab_items'),
+                  _navChip(3, Icons.settings_rounded, 'Configuraciones', 'admin_tab_settings'),
+                  if (!isWide)
+                    _navChip(4, Icons.notifications_active_rounded, 'Notificaciones', 'admin_tab_notifications'),
+                  const SizedBox(width: 8),
+                  Chip(
+                    avatar: const Icon(Icons.verified_user_rounded, size: 16),
+                    label: Text('${me.email ?? me.displayName} (${me.effectiveRoles.join(" + ")})'),
                   ),
-            1 => _selectedUser != null
-                ? _UserEditorView(
-                    user: _selectedUser!,
-                    onBack: () => setState(() => _selectedUser = null),
-                    onSaved: (updated) async {
-                      setState(() => _selectedUser = updated);
-                      await _refreshAllData();
-                    },
-                  )
-                : _UsersListView(
-                    users: _users,
-                    onSelect: (u) => _openUserDetail(u.id),
-                  ),
-            2 => _ItemsListView(
-                items: _items,
-                controller: _itemSearchCtrl,
-                onSearchChanged: _searchItems,
+                ],
               ),
-            _ => AdminSettingsSection(adminEmail: me.email),
-          },
-        ),
-      ],
+            ),
+            if (_error != null)
+              MaterialBanner(
+                backgroundColor: const Color(0xFFFEE2E2),
+                content: Text(_error!, style: const TextStyle(color: Color(0xFF991B1B))),
+                actions: [
+                  TextButton(
+                    onPressed: () => setState(() => _error = null),
+                    child: const Text('Cerrar'),
+                  ),
+                ],
+              ),
+            if (_loadingData) const LinearProgressIndicator(),
+            Expanded(
+              child: isWide
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 2/3 izquierdo: sección activa; 1/3 derecho: panel de notificaciones
+                        Expanded(flex: 2, child: mainArea),
+                        const VerticalDivider(width: 1),
+                        Expanded(
+                          flex: 1,
+                          child: AdminNotificationsPanel(
+                            refreshTrigger: _notifRefreshTrigger,
+                          ),
+                        ),
+                      ],
+                    )
+                  : mainArea,
+            ),
+          ],
+        );
+      },
     );
   }
 

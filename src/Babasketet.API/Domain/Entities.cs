@@ -45,6 +45,28 @@ public class SystemEmailConfig
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
+public static class NotificationStatuses
+{
+    public const string New = "New";
+    public const string Read = "Read";
+    public const string Archived = "Archived";
+
+    public static readonly HashSet<string> Allowed =
+        new([New, Read, Archived], StringComparer.OrdinalIgnoreCase);
+}
+
+public class AdminNotification
+{
+    public Guid Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public string Category { get; set; } = "system";
+    public string Status { get; set; } = NotificationStatuses.New;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? ReadAt { get; set; }
+    public DateTimeOffset? ArchivedAt { get; set; }
+}
+
 public class AppUser
 {
     public Guid Id { get; set; }

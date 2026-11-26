@@ -473,4 +473,33 @@ class BabasketetApiClient {
         );
         return TestEmailResultDto.fromJson(res.data!);
       });
+
+  Future<AdminNotificationsPageDto> adminGetNotifications({
+    String status = 'New',
+    int page = 1,
+    int pageSize = 10,
+  }) =>
+      _wrap(() async {
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/api/v1/admin/notifications',
+          queryParameters: {
+            'status': status,
+            'page': page,
+            'pageSize': pageSize,
+          },
+        );
+        return AdminNotificationsPageDto.fromJson(res.data!);
+      });
+
+  Future<AdminNotificationDto> adminUpdateNotificationStatus(
+    String notificationId,
+    String status,
+  ) =>
+      _wrap(() async {
+        final res = await _dio.patch<Map<String, dynamic>>(
+          '/api/v1/admin/notifications/$notificationId/status',
+          data: {'status': status},
+        );
+        return AdminNotificationDto.fromJson(res.data!);
+      });
 }

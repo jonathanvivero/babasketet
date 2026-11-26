@@ -307,11 +307,13 @@ public sealed class BabasketetApiIntegrationTests(BabasketetApiFixture fixture)
         appliedAfterDown.Should().Contain("20261125000001_InitialBaseline");
         appliedAfterDown.Should().NotContain("20261125000002_AddAppUsersAndOwnershipRules");
         appliedAfterDown.Should().NotContain("20261126000001_AddSystemEmailConfig");
+        appliedAfterDown.Should().NotContain("20261126000002_AddAdminNotifications");
 
-        await migrator.MigrateAsync("20261126000001_AddSystemEmailConfig");
+        await migrator.MigrateAsync("20261126000002_AddAdminNotifications");
         var appliedAfterUp = (await db.Database.GetAppliedMigrationsAsync()).ToList();
         appliedAfterUp.Should().Contain("20261125000002_AddAppUsersAndOwnershipRules");
         appliedAfterUp.Should().Contain("20261126000001_AddSystemEmailConfig");
+        appliedAfterUp.Should().Contain("20261126000002_AddAdminNotifications");
 
         await DatabaseInitializer.SeedCatalogsAsync(db);
     }
@@ -517,6 +519,78 @@ public sealed class BabasketetApiIntegrationTests(BabasketetApiFixture fixture)
             m.ToEmail == "destino.prueba@babasketet.test" &&
             m.Settings.Host == "smtp2.example.org" &&
             m.Settings.Password == "SuperSecretSmtpPass!");
+    }
+
+    [Fact]
+    public async Task IT_API_17_AdminNotifications_ShouldEmailAllAdmins_Paginate10_AndTransitionStates()
+    {
+        var admin1Jwt = fixture.IssueZitadelJwt("admin-notif-1", roles: ["User", "Admin"], email: "admin1@babasketet.test");
+        var admin2Jwt = fixture.IssueZitadelJwt("admin-notif-2", roles: ["User", "Admin"], email: "admin2@babasketet.test");
+
+        using var admin1 = fixture.CreateClientWithToken(admin1Jwt);
+        using var admin2 = fixture.CreateClientWithToken(admin2Jwt);
+
+        await admin1.GetAsync("/api/v1/me");
+        await admin2.GetAsync("/api/v1/me");
+
+        // Configurar SMTP para verificar notificación por email
+        (await admin1.PutAsJsonAsync("/api/v1/admin/settings/email",
+            new SaveEmailConfigRequest("smtp.test.local", 1025, null, null, true, "None", "noreply@babasketet.test", "Babasketet", true)))
+            .EnsureSuccessStatusCode();
+
+        // Crear 12 notificaciones -> paginado de 10 en 10
+        var createdIds = new List<Guid>();
+        for (var i = 1; i <= 12; i++)
+        {
+            var resp = await admin1.PostAsJsonAsync("/api/v1/admin/notifications",
+                new CreateAdminNotificationRequest($"Alerta #{i}", $"Detalle completo de alerta {i}", "system"));
+            resp.StatusCode.Should().Be(HttpStatusCode.Created);
+            var dto = await resp.Content.ReadFromJsonAsync<AdminNotificationDto>();
+            dto!.Status.Should().Be("New");
+            dto.ReadAt.Should().BeNull();
+            dto.ArchivedAt.Should().BeNull();
+            createdIds.Add(dto.Id);
+            fixture.TimeProvider.Advance(TimeSpan.FromSeconds(1));
+        }
+
+        // Debe haber enviado email a ambos admins registrados (y seed admin)
+        fixture.FakeSmtp.SentMessages.Should().Contain(m => m.ToEmail == "admin1@babasketet.test" && m.Subject.Contains("Alerta #1"));
+        fixture.FakeSmtp.SentMessages.Should().Contain(m => m.ToEmail == "admin2@babasketet.test" && m.Subject.Contains("Alerta #1"));
+
+        var page1 = await admin1.GetFromJsonAsync<AdminNotificationsPageDto>("/api/v1/admin/notifications?status=New&page=1&pageSize=10");
+        page1!.Items.Should().HaveCount(10);
+        page1.TotalCount.Should().Be(12);
+        page1.TotalPages.Should().Be(2);
+        page1.NewCount.Should().Be(12);
+
+        var page2 = await admin1.GetFromJsonAsync<AdminNotificationsPageDto>("/api/v1/admin/notifications?status=New&page=2&pageSize=10");
+        page2!.Items.Should().HaveCount(2);
+
+        // Transiciones: New -> Read -> Archived -> New
+        var targetId = createdIds[0];
+        var readDto = await (await admin1.PatchAsJsonAsync(
+            $"/api/v1/admin/notifications/{targetId}/status",
+            new UpdateNotificationStatusRequest("Read"))).Content.ReadFromJsonAsync<AdminNotificationDto>();
+        readDto!.Status.Should().Be("Read");
+        readDto.ReadAt.Should().NotBeNull();
+        readDto.ArchivedAt.Should().BeNull();
+
+        var archivedDto = await (await admin1.PatchAsJsonAsync(
+            $"/api/v1/admin/notifications/{targetId}/status",
+            new UpdateNotificationStatusRequest("Archived"))).Content.ReadFromJsonAsync<AdminNotificationDto>();
+        archivedDto!.Status.Should().Be("Archived");
+        archivedDto.ReadAt.Should().NotBeNull();
+        archivedDto.ArchivedAt.Should().NotBeNull();
+
+        var multiFilter = await admin1.GetFromJsonAsync<AdminNotificationsPageDto>("/api/v1/admin/notifications?status=Read,Archived");
+        multiFilter!.Items.Should().ContainSingle(n => n.Id == targetId);
+
+        var backToNew = await (await admin1.PatchAsJsonAsync(
+            $"/api/v1/admin/notifications/{targetId}/status",
+            new UpdateNotificationStatusRequest("New"))).Content.ReadFromJsonAsync<AdminNotificationDto>();
+        backToNew!.Status.Should().Be("New");
+        backToNew.ReadAt.Should().BeNull();
+        backToNew.ArchivedAt.Should().BeNull();
     }
 
     private HubConnection CreateHubConnection(string token)

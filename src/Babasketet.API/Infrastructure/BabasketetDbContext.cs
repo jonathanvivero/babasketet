@@ -7,6 +7,7 @@ public sealed class BabasketetDbContext(DbContextOptions<BabasketetDbContext> op
 {
     public DbSet<AppUser> AppUsers => Set<AppUser>();
     public DbSet<SystemEmailConfig> SystemEmailConfigs => Set<SystemEmailConfig>();
+    public DbSet<AdminNotification> AdminNotifications => Set<AdminNotification>();
     public DbSet<House> Houses => Set<House>();
     public DbSet<HouseMember> HouseMembers => Set<HouseMember>();
     public DbSet<HouseInvitation> HouseInvitations => Set<HouseInvitation>();
@@ -67,6 +68,22 @@ public sealed class BabasketetDbContext(DbContextOptions<BabasketetDbContext> op
             e.Property(x => x.FromName).HasColumnName("from_name").HasMaxLength(150).IsRequired();
             e.Property(x => x.Enabled).HasColumnName("enabled").IsRequired();
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired();
+        });
+
+        modelBuilder.Entity<AdminNotification>(e =>
+        {
+            e.ToTable("admin_notifications", t =>
+                t.HasCheckConstraint("ck_admin_notifications_status", "status IN ('New', 'Read', 'Archived')"));
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.Title).HasColumnName("title").HasMaxLength(200).IsRequired();
+            e.Property(x => x.Body).HasColumnName("body").HasColumnType("text").IsRequired();
+            e.Property(x => x.Category).HasColumnName("category").HasMaxLength(64).IsRequired();
+            e.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+            e.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
+            e.Property(x => x.ReadAt).HasColumnName("read_at");
+            e.Property(x => x.ArchivedAt).HasColumnName("archived_at");
+            e.HasIndex(x => new { x.Status, x.CreatedAt });
         });
 
         modelBuilder.Entity<House>(e =>

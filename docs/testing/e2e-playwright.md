@@ -101,6 +101,9 @@ tests/e2e-playwright/
 ### `10-admin-email-config.spec.ts` — Configuraciones > Correo Electrónico Saliente
 - **E2E-31**: Admin accede a `Configuraciones → Correo Electrónico Saliente`, configura SMTP contra `mailpit:1025`, recarga para confirmar persistencia en BD y envía email de prueba real verificado en Mailpit API.
 
+### `11-admin-notifications.spec.ts` — Notificaciones Admin
+- **E2E-32**: Verifica que las notificaciones envían correo real a admins, se muestran en el panel de `/admin-bo`, se abren en popup marcándose como `Leídas`, navegan `Siguiente`/`Anterior` y pasan a `Archivadas`.
+
 ---
 
 ## 4. Ejecución en Docker / CI
