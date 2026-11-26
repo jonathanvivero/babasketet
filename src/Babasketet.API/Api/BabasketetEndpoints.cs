@@ -175,6 +175,33 @@ public static class BabasketetEndpoints
         admin.MapPost("/settings/email/test", async (TestEmailRequest req, HttpContext http, EmailService svc, CancellationToken ct) =>
             Results.Ok(await svc.SendTestEmailForAdminAsync(req, ExtractBearer(http), ct)));
 
+        admin.MapGet("/notifications", async (
+                string? status,
+                int? page,
+                int? pageSize,
+                HttpContext http,
+                AdminNotificationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.GetPagedForAdminAsync(status, page ?? 1, pageSize ?? 10, ExtractBearer(http), ct)));
+
+        admin.MapPost("/notifications", async (
+                CreateAdminNotificationRequest req,
+                HttpContext http,
+                AdminNotificationService svc,
+                CancellationToken ct) =>
+        {
+            var created = await svc.CreateFromAdminAsync(req, ExtractBearer(http), ct);
+            return Results.Created($"/api/v1/admin/notifications/{created.Id}", created);
+        });
+
+        admin.MapPatch("/notifications/{notificationId:guid}/status", async (
+                Guid notificationId,
+                UpdateNotificationStatusRequest req,
+                HttpContext http,
+                AdminNotificationService svc,
+                CancellationToken ct) =>
+            Results.Ok(await svc.UpdateStatusForAdminAsync(notificationId, req, ExtractBearer(http), ct)));
+
         app.MapHub<HouseHub>("/hubs/house");
 
         return app;

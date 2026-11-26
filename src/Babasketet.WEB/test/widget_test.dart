@@ -80,6 +80,67 @@ class _FakeAdminApiClient extends BabasketetApiClient {
         message: 'Correo de prueba enviado correctamente.',
         sentAt: DateTime(2026, 11, 26),
       );
+
+  final List<AdminNotificationDto> _notifications = [
+    AdminNotificationDto(
+      id: 'notif-1',
+      title: 'Solicitud de renovación',
+      body: 'Detalle completo notificación 1',
+      category: 'system',
+      status: 'New',
+      createdAt: DateTime(2026, 11, 26, 10, 0),
+    ),
+    AdminNotificationDto(
+      id: 'notif-2',
+      title: 'Aviso secundario',
+      body: 'Detalle completo notificación 2',
+      category: 'system',
+      status: 'New',
+      createdAt: DateTime(2026, 11, 26, 9, 0),
+    ),
+  ];
+
+  @override
+  Future<AdminNotificationsPageDto> adminGetNotifications({
+    String status = 'New',
+    int page = 1,
+    int pageSize = 10,
+  }) async {
+    final allowed = status == 'All'
+        ? {'New', 'Read', 'Archived'}
+        : status.split(',').toSet();
+    final filtered =
+        _notifications.where((n) => allowed.contains(n.status)).toList();
+    return AdminNotificationsPageDto(
+      items: filtered,
+      page: 1,
+      pageSize: pageSize,
+      totalCount: filtered.length,
+      totalPages: 1,
+      newCount: _notifications.where((n) => n.status == 'New').length,
+    );
+  }
+
+  @override
+  Future<AdminNotificationDto> adminUpdateNotificationStatus(
+    String notificationId,
+    String status,
+  ) async {
+    final idx = _notifications.indexWhere((n) => n.id == notificationId);
+    final old = _notifications[idx];
+    final updated = AdminNotificationDto(
+      id: old.id,
+      title: old.title,
+      body: old.body,
+      category: old.category,
+      status: status,
+      createdAt: old.createdAt,
+      readAt: status == 'New' ? null : (old.readAt ?? DateTime(2026, 11, 26, 10, 5)),
+      archivedAt: status == 'Archived' ? DateTime(2026, 11, 26, 10, 10) : null,
+    );
+    _notifications[idx] = updated;
+    return updated;
+  }
 }
 
 void main() {
@@ -218,6 +279,11 @@ void main() {
       houses: [],
     );
 
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       ProviderScope(
         key: const ValueKey('scope_admin'),
@@ -238,8 +304,32 @@ void main() {
     expect(find.text('Configuraciones del sistema'), findsOneWidget);
     expect(find.text('Correo Electrónico Saliente'), findsOneWidget);
     expect(find.text('Guardar configuración SMTP'), findsOneWidget);
-    await tester.drag(find.byType(ListView), const Offset(0, -450));
+    await tester.drag(find.byType(ListView).first, const Offset(0, -450));
     await tester.pumpAndSettle();
     expect(find.text('Enviar email de prueba'), findsOneWidget);
+
+    // Verificar panel de notificaciones y popup con auto-lectura + navegación
+    expect(find.textContaining('Notificaciones (2 nuevas)'), findsOneWidget);
+    await tester.tap(find.text('Solicitud de renovación'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Detalle completo notificación 1'),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Siguiente →'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Detalle completo notificación 2'),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Cerrar'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Notificaciones (0 nuevas)'), findsOneWidget);
   });
 }

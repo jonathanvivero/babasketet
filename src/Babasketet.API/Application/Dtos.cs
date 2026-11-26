@@ -338,3 +338,29 @@ public sealed record TestEmailResultDto(
     string Recipient,
     string Message,
     DateTimeOffset SentAt);
+
+// === Sistema de Notificaciones Admin ===
+public sealed record AdminNotificationDto(
+    Guid Id,
+    string Title,
+    string Body,
+    string Category,
+    string Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? ReadAt,
+    DateTimeOffset? ArchivedAt);
+
+public sealed record AdminNotificationsPageDto(
+    IReadOnlyList<AdminNotificationDto> Items,
+    int Page,
+    int PageSize,
+    int TotalCount,
+    int TotalPages,
+    int NewCount);
+
+public sealed record CreateAdminNotificationRequest(
+    string Title,
+    string Body,
+    string? Category = "system");
+
+public sealed record UpdateNotificationStatusRequest(string Status);

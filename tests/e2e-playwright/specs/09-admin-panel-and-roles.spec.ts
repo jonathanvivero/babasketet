@@ -7,6 +7,7 @@ import {
 	scrollUntilVisible,
 	sem
 } from '../helpers/flutter-semantics';
+import { selectWilliamPasswordMethod } from '../helpers/william-auth';
 
 const ZITADEL_URL = process.env.ZITADEL_URL || 'http://localhost:8085';
 const ADMIN_TOKEN_FILE = '/zitadel-bootstrap/admin.pat';
@@ -106,8 +107,7 @@ test.describe('F8: Panel /admin-bo, Usuario Admin Inicial y Roles Zitadel/WillIA
 		await sem(page, 'admin_login_btn').click();
 
 		// Redirige a WillIAM.UI -> seleccionar Email+Password
-		await page.waitForURL((u) => u.pathname.includes('/ui/v2/login'), { timeout: 20_000 });
-		await page.getByTestId('auth-dial-option-password').click();
+		await selectWilliamPasswordMethod(page);
 		await page.getByTestId('pwd-email-input').fill(adminEmail);
 		await page.getByTestId('pwd-password-input').fill(initialPwd);
 		await page.getByTestId('pwd-submit-btn').click();
@@ -170,9 +170,7 @@ test.describe('F8: Panel /admin-bo, Usuario Admin Inicial y Roles Zitadel/WillIA
 		await expect(sem(page, 'onboarding_login_btn')).toBeVisible();
 		await sem(page, 'onboarding_login_btn').click();
 
-		await page.waitForURL((u) => u.pathname.includes('/ui/v2/login'), { timeout: 20_000 });
-		await page.getByTestId('mode-signup-btn').click();
-		await page.getByTestId('auth-dial-option-password').click();
+		await selectWilliamPasswordMethod(page, 'signup');
 		await page.getByTestId('pwd-name-input').fill('Normal User');
 		await page.getByTestId('pwd-email-input').fill(`normal.user.${Date.now()}@babasketet.test`);
 		await page.getByTestId('pwd-password-input').fill('NormalUser123!');

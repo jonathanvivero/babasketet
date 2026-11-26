@@ -7,6 +7,7 @@ import {
 	scrollUntilVisible,
 	sem
 } from '../helpers/flutter-semantics';
+import { selectWilliamPasswordMethod } from '../helpers/william-auth';
 
 const ZITADEL_URL = process.env.ZITADEL_URL || 'http://localhost:8085';
 const MAILPIT_URL = process.env.MAILPIT_URL || 'http://localhost:8025';
@@ -58,8 +59,7 @@ test.describe('F8a: Configuraciones del sistema > Correo Electrónico Saliente (
 		await enableFlutterSemantics(page);
 		await sem(page, 'admin_login_btn').click();
 
-		await page.waitForURL((u) => u.pathname.includes('/ui/v2/login'), { timeout: 20_000 });
-		await page.getByTestId('auth-dial-option-password').click();
+		await selectWilliamPasswordMethod(page);
 		await page.getByTestId('pwd-email-input').fill(adminEmail);
 		await page.getByTestId('pwd-password-input').fill(pwd);
 		await page.getByTestId('pwd-submit-btn').click();

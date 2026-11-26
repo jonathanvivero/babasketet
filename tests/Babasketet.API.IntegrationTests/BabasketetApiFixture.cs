@@ -149,7 +149,7 @@ public sealed class BabasketetApiFixture : IAsyncLifetime
             TRUNCATE TABLE purchase_items, purchases, product_price_history,
                            basket_items, shopping_list_items, products,
                            house_invitations, house_members, houses, app_users,
-                           system_email_configs RESTART IDENTITY CASCADE;
+                           system_email_configs, admin_notifications RESTART IDENTITY CASCADE;
             DELETE FROM stores WHERE is_system = FALSE;
             DELETE FROM product_types WHERE is_system = FALSE;
             """);

@@ -21,6 +21,21 @@ partial class BabasketetDbContextModelSnapshot : ModelSnapshot
 
         NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+        modelBuilder.Entity("Babasketet.API.Domain.AdminNotification", b =>
+            {
+                b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid").HasColumnName("id");
+                b.Property<DateTimeOffset?>("ArchivedAt").HasColumnType("timestamp with time zone").HasColumnName("archived_at");
+                b.Property<string>("Body").IsRequired().HasColumnType("text").HasColumnName("body");
+                b.Property<string>("Category").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)").HasColumnName("category");
+                b.Property<DateTimeOffset>("CreatedAt").HasColumnType("timestamp with time zone").HasColumnName("created_at");
+                b.Property<DateTimeOffset?>("ReadAt").HasColumnType("timestamp with time zone").HasColumnName("read_at");
+                b.Property<string>("Status").IsRequired().HasMaxLength(20).HasColumnType("character varying(20)").HasColumnName("status");
+                b.Property<string>("Title").IsRequired().HasMaxLength(200).HasColumnType("character varying(200)").HasColumnName("title");
+                b.HasKey("Id");
+                b.HasIndex("Status", "CreatedAt");
+                b.ToTable("admin_notifications", t => t.HasCheckConstraint("ck_admin_notifications_status", "status IN ('New', 'Read', 'Archived')"));
+            });
+
         modelBuilder.Entity("Babasketet.API.Domain.SystemEmailConfig", b =>
             {
                 b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid").HasColumnName("id");

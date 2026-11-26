@@ -138,6 +138,7 @@ lib/
   - **Usuarios**: listado y editor completo (Estado `Activo|Bloqueado`, rol `Guest|User|Owner|Admin`, indicador autenticado/anónimo, propiedades clave-valor en BD y casas con asignación de `Owner`).
   - **Ítems**: listado alfabético con filtro de texto y agrupación multi-casa (`"N casas"` cuando mismo texto case-insensitive y mismo tipo coinciden en más de una casa).
   - **Configuraciones → Correo Electrónico Saliente**: configuración SMTP (servidor, puerto, seguridad `StartTls`/`SslTls`/`None`/`Auto`, cuenta, contraseña protegida, remitente) con persistencia en BD y botón de prueba de envío.
+  - **Notificaciones (tercio derecho del dashboard principal)**: listado paginado de 10 en 10, filtro por defecto `Nuevas` (`Todas`, `Nuevas`, `Leídas`, `Archivadas`), acciones rápidas de estado y apertura en popup con marcado automático como `Leída` y navegación `Anterior` / `Siguiente`.
 
 ---
 

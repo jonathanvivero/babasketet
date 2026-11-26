@@ -803,3 +803,71 @@ class TestEmailResultDto {
         sentAt: DateTime.parse(json['sentAt'] as String),
       );
 }
+
+class AdminNotificationDto {
+  final String id;
+  final String title;
+  final String body;
+  final String category;
+  final String status;
+  final DateTime createdAt;
+  final DateTime? readAt;
+  final DateTime? archivedAt;
+
+  const AdminNotificationDto({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.category,
+    required this.status,
+    required this.createdAt,
+    this.readAt,
+    this.archivedAt,
+  });
+
+  factory AdminNotificationDto.fromJson(Map<String, dynamic> json) =>
+      AdminNotificationDto(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        body: json['body'] as String,
+        category: (json['category'] as String?) ?? 'system',
+        status: (json['status'] as String?) ?? 'New',
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        readAt: json['readAt'] != null
+            ? DateTime.parse(json['readAt'] as String)
+            : null,
+        archivedAt: json['archivedAt'] != null
+            ? DateTime.parse(json['archivedAt'] as String)
+            : null,
+      );
+}
+
+class AdminNotificationsPageDto {
+  final List<AdminNotificationDto> items;
+  final int page;
+  final int pageSize;
+  final int totalCount;
+  final int totalPages;
+  final int newCount;
+
+  const AdminNotificationsPageDto({
+    required this.items,
+    required this.page,
+    required this.pageSize,
+    required this.totalCount,
+    required this.totalPages,
+    required this.newCount,
+  });
+
+  factory AdminNotificationsPageDto.fromJson(Map<String, dynamic> json) =>
+      AdminNotificationsPageDto(
+        items: ((json['items'] as List<dynamic>?) ?? [])
+            .map((e) => AdminNotificationDto.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        page: (json['page'] as int?) ?? 1,
+        pageSize: (json['pageSize'] as int?) ?? 10,
+        totalCount: (json['totalCount'] as int?) ?? 0,
+        totalPages: (json['totalPages'] as int?) ?? 1,
+        newCount: (json['newCount'] as int?) ?? 0,
+      );
+}
